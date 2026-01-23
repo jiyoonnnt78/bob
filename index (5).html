@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>우리 학교 급식 식단표</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- PDF.js 라이브러리 로드 (브라우저에서 PDF 파싱) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+    <!-- 전체 컨테이너 -->
+    <div class="container">
+        <!-- 헤더 -->
+        <header class="header">
+            <h1>🍚 우리 학교 급식 식단표</h1>
+            <p class="subtitle">PDF 파일을 업로드하고 날짜를 선택하세요</p>
+        </header>
+
+        <!-- 메인 콘텐츠 -->
+        <main class="main-content">
+            <!-- 1단계: PDF 업로드 섹션 -->
+            <section class="upload-section">
+                <div class="section-header">
+                    <h2>📄 1단계: 급식표 PDF 업로드</h2>
+                </div>
+                <div class="upload-area">
+                    <input 
+                        type="file" 
+                        id="pdfUpload" 
+                        accept="application/pdf"
+                        class="file-input"
+                    >
+                    <label for="pdfUpload" class="upload-label">
+                        <span class="upload-icon">📎</span>
+                        <span class="upload-text">PDF 파일 선택하기</span>
+                    </label>
+                    <p class="upload-status" id="uploadStatus">아직 파일이 선택되지 않았습니다</p>
+                </div>
+            </section>
+
+            <!-- 2단계: 날짜 선택 섹션 -->
+            <section class="date-section" id="dateSection">
+                <div class="section-header">
+                    <h2>📅 2단계: 날짜 선택</h2>
+                </div>
+                <div class="date-picker-area">
+                    <label for="dateInput" class="date-label">급식을 확인할 날짜:</label>
+                    <input 
+                        type="date" 
+                        id="dateInput" 
+                        class="date-input"
+                    >
+                    <button id="searchBtn" class="search-btn">급식 메뉴 보기</button>
+                </div>
+            </section>
+
+            <!-- 3단계: 급식 메뉴 표시 섹션 -->
+            <section class="menu-section" id="menuSection">
+                <div class="section-header">
+                    <h2>🍽️ 3단계: 오늘의 급식 메뉴</h2>
+                </div>
+                <div class="menu-display">
+                    <!-- 선택한 날짜 표시 -->
+                    <div class="selected-date" id="selectedDate">
+                        날짜를 선택해주세요
+                    </div>
+                    
+                    <!-- 급식 메뉴 목록 -->
+                    <div class="menu-list" id="menuList">
+                        <p class="no-menu">아직 메뉴를 불러오지 않았습니다</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4단계: 급식 이미지 영역 (테스트용 placeholder) -->
+            <section class="image-section" id="imageSection">
+                <div class="section-header">
+                    <h2>🖼️ 4단계: 급식 이미지</h2>
+                    <span class="beta-badge">추후 AI 연동 예정</span>
+                </div>
+                <div class="image-display">
+                    <!-- 이미지 생성 placeholder -->
+                    <div class="image-placeholder" id="imagePlaceholder">
+                        <div class="placeholder-icon">🍱</div>
+                        <p class="placeholder-text">급식 이미지 생성 영역</p>
+                        <p class="placeholder-subtext">(추후 Gemini AI로 실제 이미지 생성)</p>
+                        <div class="placeholder-info" id="placeholderInfo">
+                            <!-- 여기에 메뉴 기반 프롬프트 정보가 표시됨 -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 푸터 -->
+        <footer class="footer">
+            <p>💡 개발 테스트용 웹앱 | PDF 파싱 기능 동작 확인</p>
+        </footer>
+    </div>
+
+    <!-- JavaScript 파일 로드 -->
+    <script src="script.js"></script>
+</body>
+</html>
