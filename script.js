@@ -107,6 +107,7 @@ async function handlePDFUpload(event) {
     }
 }
 
+
 /**
  * PDF 파일을 읽어서 텍스트로 변환
  * @param {File} file - PDF 파일 객체
