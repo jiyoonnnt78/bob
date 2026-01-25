@@ -226,8 +226,8 @@ function parseTableFormat(text, tokens) {
     
     console.log('🔍 테이블 형식 파싱 시작');
     
-    // 날짜 패턴 찾기 (월/일 형식)
-    const datePattern = /(\d{1,2})월\s*(\d{1,2})일\s*\((.)\)/g;
+    // 날짜 패턴 찾기 - 더 유연하게 (공백 선택적)
+    const datePattern = /(\d{1,2})월\s*(\d{1,2})일\s*\(([^\)]+)\)/g;
     const dates = [];
     let match;
     
@@ -235,7 +235,10 @@ function parseTableFormat(text, tokens) {
     while ((match = datePattern.exec(text)) !== null) {
         const month = parseInt(match[1]);
         const day = parseInt(match[2]);
-        const weekday = match[3];
+        const weekday = match[3]; // 요일 (월, 화, 수, 목, 금)
+        
+        // 유효한 요일인지 확인 (한 글자만)
+        if (weekday.length > 1) continue;
         
         // 연도 추정 (현재 연도 기준)
         let year = new Date().getFullYear();
@@ -271,21 +274,30 @@ function parseTableFormat(text, tokens) {
     // 텍스트를 줄 단위로 분리
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     
+    console.log('📄 총 줄 수:', lines.length);
+    console.log('📄 처음 10줄:', lines.slice(0, 10));
+    
     // 각 날짜별로 메뉴 수집
     for (let dateIndex = 0; dateIndex < dates.length; dateIndex++) {
         const currentDate = dates[dateIndex];
         const menus = [];
+        
+        console.log(`\n🔍 ${currentDate.dateStr} 메뉴 찾기 시작`);
         
         // 날짜 텍스트가 포함된 줄 찾기
         let dateLineIndex = -1;
         for (let i = 0; i < lines.length; i++) {
             if (lines[i].includes(currentDate.originalText)) {
                 dateLineIndex = i;
+                console.log(`  - 날짜 줄 발견: ${i}번째 줄`);
                 break;
             }
         }
         
-        if (dateLineIndex === -1) continue;
+        if (dateLineIndex === -1) {
+            console.log(`  ❌ 날짜 줄을 찾을 수 없음`);
+            continue;
+        }
         
         // 날짜가 있는 줄에서 해당 날짜의 위치 파악
         const dateLine = lines[dateLineIndex];
@@ -298,15 +310,19 @@ function parseTableFormat(text, tokens) {
             const nextPos = dateLine.indexOf(nextDateText);
             if (nextPos > datePositionInLine) {
                 nextDatePosition = nextPos;
+                console.log(`  - 다음 날짜 위치: ${nextPos}`);
             }
         }
         
+        console.log(`  - 이 날짜 열 범위: ${datePositionInLine} ~ ${nextDatePosition}`);
+        
         // 날짜 다음 줄부터 메뉴 수집 (세로로 배치된 메뉴들)
-        for (let i = dateLineIndex + 1; i < lines.length; i++) {
+        for (let i = dateLineIndex + 1; i < Math.min(dateLineIndex + 30, lines.length); i++) {
             const line = lines[i];
             
             // 다른 날짜가 나오면 중단
             if (/\d{1,2}월\s*\d{1,2}일/.test(line)) {
+                console.log(`  - 다른 날짜 발견, 중단`);
                 break;
             }
             
@@ -314,40 +330,27 @@ function parseTableFormat(text, tokens) {
             if (line.includes('원산지') || line.includes('영양소') || 
                 line.includes('에너지') || line.includes('국내산') ||
                 line.includes('평균') || line.includes('칼슘')) {
+                console.log(`  - 메뉴 섹션 종료 키워드 발견`);
                 break;
             }
             
-            // 해당 날짜 열에 해당하는 부분만 추출
-            // (텍스트가 가로로 배치되어 있을 수 있음)
-            const columnStart = datePositionInLine;
-            const columnEnd = nextDatePosition;
-            
-            // 줄에서 해당 열 부분 추출
-            let menuText = '';
-            if (line.length > columnStart) {
-                menuText = line.substring(columnStart, Math.min(columnEnd, line.length)).trim();
-            }
-            
-            // 전체 줄도 검사 (세로 배치일 수 있음)
-            if (!menuText && /[가-힣]/.test(line)) {
-                menuText = line;
-            }
-            
-            if (menuText && isValidMenuItem(menuText)) {
+            // 메뉴 항목인지 검사
+            if (isValidMenuItem(line)) {
                 // 알레르기 정보 제거
-                const cleanedText = menuText.replace(/\([0-9\.\s]+\)/g, '').trim();
+                const cleanedText = line.replace(/\([0-9\.\s]+\)/g, '').trim();
                 // 화살표(→) 처리
                 const finalText = cleanedText.replace(/\s*->\s*/g, ' / ').trim();
                 
                 if (finalText.length > 1) {
                     menus.push(finalText);
+                    console.log(`  ✅ 메뉴 추가: "${finalText}"`);
                 }
             }
         }
         
         if (menus.length > 0) {
             menuData[currentDate.dateStr] = menus;
-            console.log(`✅ ${currentDate.dateStr} (${currentDate.originalText}):`, menus);
+            console.log(`✅ ${currentDate.dateStr} 총 ${menus.length}개 메뉴`);
         } else {
             console.log(`⚠️ ${currentDate.dateStr} 메뉴 없음`);
         }
