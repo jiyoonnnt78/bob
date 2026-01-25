@@ -27,6 +27,14 @@ const menuList = document.getElementById('menuList');
 const imageSection = document.getElementById('imageSection');
 const placeholderInfo = document.getElementById('placeholderInfo');
 
+// 이미지 생성 관련 요소 (새로 추가)
+const generateImageBtn = document.getElementById('generateImageBtn');
+const loadingState = document.getElementById('loadingState');
+const imageResult = document.getElementById('imageResult');
+const imagePlaceholder = document.getElementById('imagePlaceholder');
+const generatedImage = document.getElementById('generatedImage');
+const imageInfo = document.getElementById('imageInfo');
+
 // ===================================
 // 이벤트 리스너 등록
 // ===================================
@@ -36,6 +44,9 @@ pdfUpload.addEventListener('change', handlePDFUpload);
 
 // 급식 메뉴 검색 버튼 클릭 이벤트
 searchBtn.addEventListener('click', handleMenuSearch);
+
+// 이미지 생성 버튼 클릭 이벤트 (새로 추가)
+generateImageBtn.addEventListener('click', handleImageGeneration);
 
 // ===================================
 // 1단계: PDF 업로드 처리
@@ -376,46 +387,218 @@ function updateImagePlaceholder(menu) {
 }
 
 // ===================================
-// [확장 지점] AI 이미지 생성 함수 (추후 구현)
+// [확장 지점] AI 이미지 생성 함수
 // ===================================
 
 /**
- * [확장 지점] Gemini AI를 사용한 이미지 생성
- * 이 함수는 현재 구현되지 않았으며, 추후 Gemini API 연동 시 사용
- * 
+ * 이미지 생성 버튼 클릭 핸들러
+ * 사용자가 "급식 이미지 생성하기" 버튼을 클릭하면 실행됨
+ */
+async function handleImageGeneration() {
+    // 메뉴가 선택되지 않은 경우
+    if (!appState.currentMenu || appState.currentMenu.length === 0) {
+        alert('❌ 먼저 날짜를 선택하고 급식 메뉴를 불러와주세요!');
+        return;
+    }
+    
+    try {
+        // 1. UI 상태 변경: 로딩 시작
+        showLoadingState();
+        
+        // 2. 서버에 이미지 생성 요청
+        const imageUrl = await requestImageGeneration(
+            appState.currentDate,
+            appState.currentMenu
+        );
+        
+        // 3. 생성된 이미지 표시
+        displayGeneratedImage(imageUrl, appState.currentMenu);
+        
+    } catch (error) {
+        console.error('❌ 이미지 생성 오류:', error);
+        hideLoadingState();
+        alert('이미지 생성 중 오류가 발생했습니다. 다시 시도해주세요.');
+    }
+}
+
+/**
+ * 로딩 상태 표시
+ */
+function showLoadingState() {
+    generateImageBtn.disabled = true;
+    imagePlaceholder.style.display = 'none';
+    imageResult.style.display = 'none';
+    loadingState.style.display = 'block';
+}
+
+/**
+ * 로딩 상태 숨김
+ */
+function hideLoadingState() {
+    generateImageBtn.disabled = false;
+    loadingState.style.display = 'none';
+}
+
+/**
+ * 서버에 이미지 생성 API 요청
+ * @param {string} date - 선택된 날짜 (YYYY-MM-DD)
  * @param {Array} menu - 메뉴 배열
  * @returns {Promise<string>} - 생성된 이미지 URL
- * 
- * 사용 예시:
- * const imageUrl = await generateImageWithGemini(appState.currentMenu);
- * document.getElementById('generatedImage').src = imageUrl;
  */
-async function generateImageWithGemini(menu) {
-    // TODO: Gemini API 연동
-    // 1. 메뉴를 기반으로 프롬프트 생성
+async function requestImageGeneration(date, menu) {
+    // 메뉴를 하나의 문자열로 결합
     const menuText = menu.join(', ');
-    const prompt = `한국 학교 급식 식판에 담긴 음식: ${menuText}. 사실적이고 맛있어 보이는 학교 급식 이미지.`;
     
-    // 2. Gemini API 호출 (예시 코드)
+    // 이미지 생성용 프롬프트 생성
+    const prompt = createImagePrompt(menuText);
+    
+    // 서버 API 엔드포인트
+    const apiEndpoint = '/api/generate-image';
+    
+    // POST 요청 데이터
+    const requestData = {
+        date: date,
+        menu: menu,
+        menuText: menuText,
+        prompt: prompt
+    };
+    
+    console.log('📤 서버에 이미지 생성 요청:', requestData);
+    
+    // 실제 API 호출 (현재는 mock 응답)
+    const response = await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+    });
+    
+    if (!response.ok) {
+        throw new Error(`서버 응답 오류: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    
+    console.log('📥 서버 응답:', data);
+    
+    // 이미지 URL 반환 (서버에서 imageUrl 필드로 보내준다고 가정)
+    return data.imageUrl;
+}
+
+/**
+ * Gemini AI 이미지 생성용 프롬프트 생성
+ * @param {string} menuText - 메뉴 문자열 (예: "밥, 김치찌개, 깍두기")
+ * @returns {string} - 이미지 생성 프롬프트
+ */
+function createImagePrompt(menuText) {
+    // 초등학교 급식 특화 프롬프트
+    const prompt = `
+A realistic photo of Korean elementary school lunch on a plastic cafeteria tray.
+The tray contains: ${menuText}.
+The food is served in a typical school cafeteria setting with natural lighting.
+The colors are realistic and not overly saturated.
+The image should look appetizing but not exaggerated.
+Focus on the actual meal presentation in a school environment.
+High quality, detailed food photography.
+    `.trim();
+    
+    return prompt;
+}
+
+/**
+ * 생성된 이미지를 화면에 표시
+ * @param {string} imageUrl - 이미지 URL 또는 base64 데이터
+ * @param {Array} menu - 메뉴 배열
+ */
+function displayGeneratedImage(imageUrl, menu) {
+    // 로딩 상태 숨김
+    hideLoadingState();
+    
+    // placeholder 숨김
+    imagePlaceholder.style.display = 'none';
+    
+    // 이미지 설정
+    generatedImage.src = imageUrl;
+    generatedImage.alt = `급식 이미지: ${menu.join(', ')}`;
+    
+    // 이미지 정보 표시
+    const menuText = menu.join(', ');
+    imageInfo.innerHTML = `
+        <p><strong>📅 날짜:</strong> ${formatKoreanDate(new Date(appState.currentDate + 'T00:00:00'))}</p>
+        <p><strong>🍽️ 메뉴:</strong> ${menuText}</p>
+        <p><strong>✅ 이미지 생성 완료!</strong></p>
+    `;
+    
+    // 결과 영역 표시
+    imageResult.style.display = 'block';
+    
+    console.log('✅ 이미지 표시 완료:', imageUrl);
+}
+
+// ===================================
+// [개발 참고] Mock 서버 응답 (테스트용)
+// ===================================
+
+/**
+ * ⚠️ 이 함수는 실제 서버가 없을 때 테스트용으로 사용
+ * 실제 배포 시에는 위의 requestImageGeneration()에서
+ * 실제 서버 API를 호출하도록 수정해야 함
+ */
+async function mockImageGeneration(date, menu) {
+    // 2초 대기 (서버 처리 시간 시뮬레이션)
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Mock 이미지 URL 반환 (실제로는 Gemini가 생성한 이미지 URL)
+    // 테스트용으로 placeholder 이미지 서비스 사용
+    const menuText = encodeURIComponent(menu.join(', '));
+    const mockImageUrl = `https://via.placeholder.com/600x400/FF6B35/FFFFFF?text=${menuText}`;
+    
+    return mockImageUrl;
+}
+
+/**
+ * [확장 지점] 실제 Gemini API를 직접 호출하는 함수
+ * 
+ * ⚠️ 주의: 
+ * - 프론트엔드에서 직접 API 키를 노출하면 안 됩니다!
+ * - 반드시 서버를 거쳐서 호출해야 합니다
+ * - 이 함수는 참고용 예시일 뿐, 실제로는 서버에서 구현해야 함
+ * 
+ * @param {string} prompt - 이미지 생성 프롬프트
+ * @returns {Promise<string>} - 생성된 이미지 URL
+ */
+async function generateImageWithGeminiDirect(prompt) {
+    // TODO: 실제 Gemini API 연동 (서버에서 구현해야 함!)
     /*
-    const response = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-pro-vision:generateContent', {
+    const GEMINI_API_KEY = 'YOUR_API_KEY'; // ⚠️ 절대 프론트엔드에 노출하지 말 것!
+    
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer YOUR_API_KEY'
+            'x-goog-api-key': GEMINI_API_KEY
         },
         body: JSON.stringify({
-            prompt: prompt,
-            // 기타 설정...
+            contents: [{
+                parts: [{
+                    text: prompt
+                }]
+            }],
+            generationConfig: {
+                temperature: 0.4,
+                topK: 32,
+                topP: 1,
+                maxOutputTokens: 4096,
+            }
         })
     });
     
     const data = await response.json();
-    return data.imageUrl;
+    return data.candidates[0].content.parts[0].inlineData.data; // base64 이미지
     */
     
-    // 현재는 placeholder 반환
-    return 'placeholder-image.jpg';
+    throw new Error('이 함수는 서버에서 구현해야 합니다!');
 }
 
 // ===================================
