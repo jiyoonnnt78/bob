@@ -3,7 +3,7 @@
 // ===================================
 
 // PDF.js 워커 설정 (PDF 파싱을 위한 필수 설정)
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
 // 전역 상태 관리 객체
 let appState = {
@@ -224,6 +224,8 @@ function parseLineByLine(lines) {
 function parseTableFormat(text, tokens) {
     const menuData = {};
     
+    console.log('🔍 테이블 형식 파싱 시작');
+    
     // 날짜 패턴 찾기 (월/일 형식)
     const datePattern = /(\d{1,2})월\s*(\d{1,2})일\s*\((.)\)/g;
     const dates = [];
@@ -254,60 +256,132 @@ function parseTableFormat(text, tokens) {
             month: month,
             day: day,
             weekday: weekday,
-            originalText: match[0]
+            originalText: match[0],
+            index: match.index
         });
     }
     
     console.log('📅 테이블에서 인식된 날짜:', dates);
     
     if (dates.length === 0) {
+        console.log('❌ 날짜를 찾을 수 없습니다');
         return menuData;
     }
     
-    // 각 날짜별로 메뉴 추출 시도
-    for (let i = 0; i < dates.length; i++) {
-        const currentDate = dates[i];
-        const nextDate = dates[i + 1];
+    // 텍스트를 줄 단위로 분리
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    
+    // 각 날짜별로 메뉴 수집
+    for (let dateIndex = 0; dateIndex < dates.length; dateIndex++) {
+        const currentDate = dates[dateIndex];
+        const menus = [];
         
-        // 현재 날짜 텍스트 위치 찾기
-        const currentDateIndex = text.indexOf(currentDate.originalText);
-        const nextDateIndex = nextDate ? text.indexOf(nextDate.originalText) : text.length;
+        // 날짜 텍스트가 포함된 줄 찾기
+        let dateLineIndex = -1;
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].includes(currentDate.originalText)) {
+                dateLineIndex = i;
+                break;
+            }
+        }
         
-        // 현재 날짜와 다음 날짜 사이의 텍스트 추출
-        const sectionText = text.substring(currentDateIndex, nextDateIndex);
+        if (dateLineIndex === -1) continue;
         
-        // 메뉴 항목 추출 (한글이 포함된 줄만)
-        const menuLines = sectionText
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => {
-                // 날짜 줄 제외
-                if (line.includes('월') && line.includes('일')) return false;
-                // 한글이 있고, 음식명으로 보이는 것만
-                if (!/[가-힣]/.test(line)) return false;
-                // 너무 짧은 것 제외
-                if (line.length < 2) return false;
-                // "원산지", "영양소" 등 제외
-                if (line.includes('원산지') || line.includes('영양소') || 
-                    line.includes('에너지') || line.includes('칼슘') ||
-                    line.includes('국내산')) return false;
+        // 날짜가 있는 줄에서 해당 날짜의 위치 파악
+        const dateLine = lines[dateLineIndex];
+        const datePositionInLine = dateLine.indexOf(currentDate.originalText);
+        
+        // 다음 날짜의 위치 파악 (같은 줄에 있을 수 있음)
+        let nextDatePosition = dateLine.length;
+        if (dateIndex < dates.length - 1) {
+            const nextDateText = dates[dateIndex + 1].originalText;
+            const nextPos = dateLine.indexOf(nextDateText);
+            if (nextPos > datePositionInLine) {
+                nextDatePosition = nextPos;
+            }
+        }
+        
+        // 날짜 다음 줄부터 메뉴 수집 (세로로 배치된 메뉴들)
+        for (let i = dateLineIndex + 1; i < lines.length; i++) {
+            const line = lines[i];
+            
+            // 다른 날짜가 나오면 중단
+            if (/\d{1,2}월\s*\d{1,2}일/.test(line)) {
+                break;
+            }
+            
+            // "원산지", "영양소" 등이 나오면 메뉴 섹션 종료
+            if (line.includes('원산지') || line.includes('영양소') || 
+                line.includes('에너지') || line.includes('국내산') ||
+                line.includes('평균') || line.includes('칼슘')) {
+                break;
+            }
+            
+            // 해당 날짜 열에 해당하는 부분만 추출
+            // (텍스트가 가로로 배치되어 있을 수 있음)
+            const columnStart = datePositionInLine;
+            const columnEnd = nextDatePosition;
+            
+            // 줄에서 해당 열 부분 추출
+            let menuText = '';
+            if (line.length > columnStart) {
+                menuText = line.substring(columnStart, Math.min(columnEnd, line.length)).trim();
+            }
+            
+            // 전체 줄도 검사 (세로 배치일 수 있음)
+            if (!menuText && /[가-힣]/.test(line)) {
+                menuText = line;
+            }
+            
+            if (menuText && isValidMenuItem(menuText)) {
+                // 알레르기 정보 제거
+                const cleanedText = menuText.replace(/\([0-9\.\s]+\)/g, '').trim();
+                // 화살표(→) 처리
+                const finalText = cleanedText.replace(/\s*->\s*/g, ' / ').trim();
                 
-                return true;
-            });
+                if (finalText.length > 1) {
+                    menus.push(finalText);
+                }
+            }
+        }
         
-        // 메뉴에서 알레르기 표시 제거 (괄호 안 숫자들)
-        const cleanedMenu = menuLines.map(line => {
-            // (1.2.5.6.10.13) 같은 패턴 제거
-            return line.replace(/\([0-9\.\s]+\)/g, '').trim();
-        }).filter(line => line.length > 0);
-        
-        if (cleanedMenu.length > 0) {
-            menuData[currentDate.dateStr] = cleanedMenu;
-            console.log(`✅ ${currentDate.dateStr} 메뉴 추출:`, cleanedMenu);
+        if (menus.length > 0) {
+            menuData[currentDate.dateStr] = menus;
+            console.log(`✅ ${currentDate.dateStr} (${currentDate.originalText}):`, menus);
+        } else {
+            console.log(`⚠️ ${currentDate.dateStr} 메뉴 없음`);
         }
     }
     
     return menuData;
+}
+
+/**
+ * 유효한 메뉴 항목인지 검사
+ */
+function isValidMenuItem(text) {
+    // 너무 짧은 텍스트
+    if (text.length < 2) return false;
+    
+    // 한글이 없으면 메뉴가 아님
+    if (!/[가-힣]/.test(text)) return false;
+    
+    // 숫자만 있는 경우
+    if (/^[\d\s\.\,\-\(\)\/]+$/.test(text)) return false;
+    
+    // 제외할 키워드들
+    const excludeKeywords = [
+        '원산지', '영양소', '에너지', '칼슘', '국내산', '수입',
+        '평균', '권장', '섭취량', '탄수화물', '단백질', '지방',
+        '비타민', '철분', '리보플라빈', '티아민',
+        '학교급식', '인천', '주간', '월요일', '화요일', '수요일', '목요일', '금요일'
+    ];
+    
+    for (const keyword of excludeKeywords) {
+        if (text.includes(keyword)) return false;
+    }
+    
+    return true;
 }
 
 /**
