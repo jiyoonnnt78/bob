@@ -262,35 +262,41 @@ function parseTableFormat(text, tokens) {
         return menuData;
     }
     
-    // 2. 전체 텍스트에서 메뉴만 추출 (단순하지만 효과적인 방법)
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    
+    // 2. 전체 텍스트에서 실제 메뉴만 추출
     const allMenuItems = [];
-    
     for (const line of lines) {
-        // 날짜 줄 건너뛰기
-        if (/\d{1,2}월/.test(line) && /\d{1,2}일/.test(line)) continue;
-        
-        // 확실히 제외할 키워드만 (최소한으로)
-        if (line.includes('원산지') || line.includes('학교급식') || 
-            /kcal|RAE|칼슘|평균|권장|섭취량/.test(line)) {
+        const originalLine = line;
+        // 1️⃣ 날짜 / 요일 완전 제외
+        if (
+            /\d{1,2}월/.test(line) ||
+            /\d{1,2}일/.test(line) ||
+            /\(월\)|\(화\)|\(수\)|\(목\)|\(금\)/.test(line)
+        ) {
             continue;
         }
-        
-        // 한글 2글자 이상만
-        if (/[가-힣]{2,}/.test(line)) {
-            // 알레르기 정보 제거
-            let cleaned = line.replace(/\([0-9\.\s]+\)/g, '').trim();
-            // 화살표 처리
-            cleaned = cleaned.replace(/\s*->\s*/g, ' / ').trim();
-            // 여러 공백을 하나로
-            cleaned = cleaned.replace(/\s+/g, ' ');
-            
-            // 최소한의 조건만 (1글자 이상, 한글 포함)
-            if (cleaned.length > 0 && /[가-힣]/.test(cleaned)) {
-                allMenuItems.push(cleaned);
-                console.log(`  ✅ 메뉴 추가: "${cleaned}"`);
-            }
+        // 2️⃣ 영양 / 원산지 / 설명 텍스트 제외
+        if (
+            /원산지|학교급식|영양소|영양량|에너지|kcal|RAE|칼슘|철분|단백질|지방|탄수화물|비타민|평균|권장|섭취량/.test(line)
+        ) {
+            continue;
+        }
+        // 3️⃣ 줄 전체가 알레르기 정보인 경우 제외
+        if (/^\([0-9\.\s]+\)$/.test(line)) {
+            continue;
+        }
+        // 4️⃣ 알레르기 괄호만 제거 (메뉴는 살림)
+        let cleaned = line.replace(/\([0-9\.\s]+\)/g, '').trim();
+        // 5️⃣ 화살표 메뉴 처리 (→ 백김치 등)
+        cleaned = cleaned.replace(/\s*->\s*/g, ' / ').trim();
+        // 6️⃣ 공백 정리
+        cleaned = cleaned.replace(/\s+/g, ' ');
+        // 7️⃣ 한글 2글자 이상 + 숫자 위주 텍스트 제외
+        if (
+            /[가-힣]{2,}/.test(cleaned) &&
+            !/^[\d\s\.\,\-\/]+$/.test(cleaned)
+        ) {
+            allMenuItems.push(cleaned);
+            console.log(`  ✅ 메뉴 인식: "${cleaned}" (원본: "${originalLine}")`);
         }
     }
     
