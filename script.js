@@ -561,26 +561,24 @@ async function requestImageGeneration(date, menu) {
     // 이미지 생성용 프롬프트 생성
     const prompt = createImagePrompt(menuText);
     
-    // 서버 API 엔드포인트
+    console.log('📤 이미지 생성 요청:', { date, menu, menuText, prompt });
+    
+    // ⚠️ 개발 모드: 서버 없이 mock 이미지 사용
+    // 실제 서버 배포 후에는 아래 주석을 해제하세요
+    /*
     const apiEndpoint = '/api/generate-image';
     
-    // POST 요청 데이터
-    const requestData = {
-        date: date,
-        menu: menu,
-        menuText: menuText,
-        prompt: prompt
-    };
-    
-    console.log('📤 서버에 이미지 생성 요청:', requestData);
-    
-    // 실제 API 호출 (현재는 mock 응답)
     const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify(requestData)
+        body: JSON.stringify({
+            date: date,
+            menu: menu,
+            menuText: menuText,
+            prompt: prompt
+        })
     });
     
     if (!response.ok) {
@@ -588,11 +586,11 @@ async function requestImageGeneration(date, menu) {
     }
     
     const data = await response.json();
-    
-    console.log('📥 서버 응답:', data);
-    
-    // 이미지 URL 반환 (서버에서 imageUrl 필드로 보내준다고 가정)
     return data.imageUrl;
+    */
+    
+    // 🔧 임시: Mock 이미지 생성 (서버 없이 테스트용)
+    return await mockImageGeneration(date, menu);
 }
 
 /**
