@@ -218,40 +218,32 @@ function parseLineByLine(lines) {
 }
 
 /**
- * 테이블 형식 파싱 (새로 추가 - 가로 배치 테이블용)
- * 예: "12월 29일(월) 12월 30일(화) ..."
+ * 테이블 형식 파싱 (가로 배치 테이블용)
+ * 날짜들이 한 줄에 가로로 나열되고, 메뉴들이 그 아래 각 열에 배치된 구조
  */
 function parseTableFormat(text, tokens) {
     const menuData = {};
     
     console.log('🔍 테이블 형식 파싱 시작');
     
-    // 날짜 패턴 찾기 - 더 유연하게 (공백 선택적)
+    // 1. 날짜 패턴 찾기
     const datePattern = /(\d{1,2})월\s*(\d{1,2})일\s*\(([^\)]+)\)/g;
     const dates = [];
     let match;
     
-    // 모든 날짜 찾기
     while ((match = datePattern.exec(text)) !== null) {
         const month = parseInt(match[1]);
         const day = parseInt(match[2]);
-        const weekday = match[3]; // 요일 (월, 화, 수, 목, 금)
+        const weekday = match[3];
         
-        // 유효한 요일인지 확인 (한 글자만)
+        // 유효한 요일인지 확인
         if (weekday.length > 1) continue;
         
-        // 연도 추정 (현재 연도 기준)
         let year = new Date().getFullYear();
         const currentMonth = new Date().getMonth() + 1;
         
-        // 12월인데 현재가 1월이면 작년
-        if (month === 12 && currentMonth === 1) {
-            year = year - 1;
-        }
-        // 1월인데 현재가 12월이면 내년
-        else if (month === 1 && currentMonth === 12) {
-            year = year + 1;
-        }
+        if (month === 12 && currentMonth === 1) year = year - 1;
+        else if (month === 1 && currentMonth === 12) year = year + 1;
         
         const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         dates.push({
@@ -260,101 +252,113 @@ function parseTableFormat(text, tokens) {
             day: day,
             weekday: weekday,
             originalText: match[0],
-            index: match.index
+            position: match.index
         });
     }
     
-    console.log('📅 테이블에서 인식된 날짜:', dates);
+    console.log('📅 인식된 날짜:', dates.map(d => d.dateStr));
     
     if (dates.length === 0) {
         console.log('❌ 날짜를 찾을 수 없습니다');
         return menuData;
     }
     
-    // 텍스트를 줄 단위로 분리
+    // 2. 줄 단위로 분리
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     
-    console.log('📄 총 줄 수:', lines.length);
-    console.log('📄 처음 10줄:', lines.slice(0, 10));
-    
-    // 각 날짜별로 메뉴 수집
-    for (let dateIndex = 0; dateIndex < dates.length; dateIndex++) {
-        const currentDate = dates[dateIndex];
-        const menus = [];
-        
-        console.log(`\n🔍 ${currentDate.dateStr} 메뉴 찾기 시작`);
-        
-        // 날짜 텍스트가 포함된 줄 찾기
-        let dateLineIndex = -1;
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].includes(currentDate.originalText)) {
-                dateLineIndex = i;
-                console.log(`  - 날짜 줄 발견: ${i}번째 줄`);
-                break;
-            }
-        }
-        
-        if (dateLineIndex === -1) {
-            console.log(`  ❌ 날짜 줄을 찾을 수 없음`);
-            continue;
-        }
-        
-        // 날짜가 있는 줄에서 해당 날짜의 위치 파악
-        const dateLine = lines[dateLineIndex];
-        const datePositionInLine = dateLine.indexOf(currentDate.originalText);
-        
-        // 다음 날짜의 위치 파악 (같은 줄에 있을 수 있음)
-        let nextDatePosition = dateLine.length;
-        if (dateIndex < dates.length - 1) {
-            const nextDateText = dates[dateIndex + 1].originalText;
-            const nextPos = dateLine.indexOf(nextDateText);
-            if (nextPos > datePositionInLine) {
-                nextDatePosition = nextPos;
-                console.log(`  - 다음 날짜 위치: ${nextPos}`);
-            }
-        }
-        
-        console.log(`  - 이 날짜 열 범위: ${datePositionInLine} ~ ${nextDatePosition}`);
-        
-        // 날짜 다음 줄부터 메뉴 수집 (세로로 배치된 메뉴들)
-        for (let i = dateLineIndex + 1; i < Math.min(dateLineIndex + 30, lines.length); i++) {
-            const line = lines[i];
-            
-            // 다른 날짜가 나오면 중단
-            if (/\d{1,2}월\s*\d{1,2}일/.test(line)) {
-                console.log(`  - 다른 날짜 발견, 중단`);
-                break;
-            }
-            
-            // "원산지", "영양소" 등이 나오면 메뉴 섹션 종료
-            if (line.includes('원산지') || line.includes('영양소') || 
-                line.includes('에너지') || line.includes('국내산') ||
-                line.includes('평균') || line.includes('칼슘')) {
-                console.log(`  - 메뉴 섹션 종료 키워드 발견`);
-                break;
-            }
-            
-            // 메뉴 항목인지 검사
-            if (isValidMenuItem(line)) {
-                // 알레르기 정보 제거
-                const cleanedText = line.replace(/\([0-9\.\s]+\)/g, '').trim();
-                // 화살표(→) 처리
-                const finalText = cleanedText.replace(/\s*->\s*/g, ' / ').trim();
-                
-                if (finalText.length > 1) {
-                    menus.push(finalText);
-                    console.log(`  ✅ 메뉴 추가: "${finalText}"`);
-                }
-            }
-        }
-        
-        if (menus.length > 0) {
-            menuData[currentDate.dateStr] = menus;
-            console.log(`✅ ${currentDate.dateStr} 총 ${menus.length}개 메뉴`);
-        } else {
-            console.log(`⚠️ ${currentDate.dateStr} 메뉴 없음`);
+    // 3. 날짜가 있는 첫 줄 찾기
+    let headerLineIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+        if (lines[i].includes(dates[0].originalText)) {
+            headerLineIndex = i;
+            break;
         }
     }
+    
+    console.log('📍 날짜 헤더 줄:', headerLineIndex);
+    
+    if (headerLineIndex === -1) {
+        console.log('❌ 날짜 헤더를 찾을 수 없습니다');
+        return menuData;
+    }
+    
+    const headerLine = lines[headerLineIndex];
+    
+    // 4. 각 날짜의 텍스트 위치 파악 (문자 인덱스)
+    const datePositions = dates.map((date, idx) => {
+        const start = headerLine.indexOf(date.originalText);
+        const end = idx < dates.length - 1 
+            ? headerLine.indexOf(dates[idx + 1].originalText)
+            : headerLine.length;
+        return { ...date, columnStart: start, columnEnd: end };
+    });
+    
+    console.log('📊 각 날짜 열 위치:', datePositions.map(d => 
+        `${d.dateStr}: ${d.columnStart}-${d.columnEnd}`
+    ));
+    
+    // 5. 메뉴 줄 수집 (날짜 헤더 다음 줄부터)
+    const menuLines = [];
+    for (let i = headerLineIndex + 1; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // 메뉴 섹션 종료 조건
+        if (line.includes('원산지') || line.includes('영양소') || 
+            line.includes('에너지') || line.includes('국내산') ||
+            line.includes('평균') || line.includes('칼슘') ||
+            line.includes('학교급식')) {
+            console.log(`📍 메뉴 섹션 종료: ${i}번째 줄`);
+            break;
+        }
+        
+        // 한글이 있는 줄만
+        if (/[가-힣]/.test(line)) {
+            menuLines.push(line);
+        }
+    }
+    
+    console.log(`📋 메뉴 줄 총 ${menuLines.length}개 수집`);
+    
+    // 6. 각 날짜별로 메뉴 추출
+    datePositions.forEach((date, idx) => {
+        const menus = [];
+        
+        console.log(`\n🔍 ${date.dateStr} 메뉴 추출 시작 (열 ${date.columnStart}-${date.columnEnd})`);
+        
+        menuLines.forEach((line, lineIdx) => {
+            // 해당 날짜의 열 범위에서 텍스트 추출
+            let menuText = '';
+            
+            if (line.length >= date.columnStart) {
+                menuText = line.substring(
+                    date.columnStart, 
+                    Math.min(date.columnEnd, line.length)
+                ).trim();
+            }
+            
+            // 메뉴 항목인지 검증
+            if (menuText && isValidMenuItem(menuText)) {
+                // 알레르기 정보 제거
+                let cleaned = menuText.replace(/\([0-9\.\s]+\)/g, '').trim();
+                // 화살표 처리
+                cleaned = cleaned.replace(/\s*->\s*/g, ' / ').trim();
+                // 여러 공백을 하나로
+                cleaned = cleaned.replace(/\s+/g, ' ');
+                
+                if (cleaned.length > 1) {
+                    menus.push(cleaned);
+                    console.log(`  ✅ ${lineIdx}번 줄: "${cleaned}"`);
+                }
+            }
+        });
+        
+        if (menus.length > 0) {
+            menuData[date.dateStr] = menus;
+            console.log(`✅ ${date.dateStr}: 총 ${menus.length}개 메뉴`);
+        } else {
+            console.log(`⚠️ ${date.dateStr}: 메뉴 없음`);
+        }
+    });
     
     return menuData;
 }
@@ -363,27 +367,39 @@ function parseTableFormat(text, tokens) {
  * 유효한 메뉴 항목인지 검사
  */
 function isValidMenuItem(text) {
+    // 공백 제거한 실제 텍스트
+    const trimmed = text.trim();
+    
     // 너무 짧은 텍스트
-    if (text.length < 2) return false;
+    if (trimmed.length < 2) return false;
     
     // 한글이 없으면 메뉴가 아님
-    if (!/[가-힣]/.test(text)) return false;
+    if (!/[가-힣]/.test(trimmed)) return false;
     
-    // 숫자만 있는 경우
-    if (/^[\d\s\.\,\-\(\)\/]+$/.test(text)) return false;
+    // 숫자와 기호만 있는 경우
+    if (/^[\d\s\.\,\-\(\)\/\:]+$/.test(trimmed)) return false;
     
-    // 제외할 키워드들
+    // 제외할 키워드들 (정확히 일치하거나 포함된 경우만)
     const excludeKeywords = [
         '원산지', '영양소', '에너지', '칼슘', '국내산', '수입',
         '평균', '권장', '섭취량', '탄수화물', '단백질', '지방',
         '비타민', '철분', '리보플라빈', '티아민',
-        '학교급식', '인천', '주간', '월요일', '화요일', '수요일', '목요일', '금요일'
+        '학교급식', '주간', '알레르기', 'kcal', 'RAE', 'mg'
     ];
     
+    // 제외 키워드 체크
     for (const keyword of excludeKeywords) {
-        if (text.includes(keyword)) return false;
+        if (trimmed.includes(keyword)) {
+            return false;
+        }
     }
     
+    // 날짜 패턴이 있으면 제외
+    if (/\d{1,2}월\s*\d{1,2}일/.test(trimmed)) {
+        return false;
+    }
+    
+    // 여기까지 통과하면 메뉴로 간주
     return true;
 }
 
