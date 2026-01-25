@@ -219,7 +219,7 @@ function parseLineByLine(lines) {
 
 /**
  * 테이블 형식 파싱 (가로 배치 테이블용)
- * 날짜들이 한 줄에 가로로 나열되고, 메뉴들이 그 아래 각 열에 배치된 구조
+ * PDF.js가 테이블을 제대로 못 읽는 경우를 대비한 강건한 파싱
  */
 function parseTableFormat(text, tokens) {
     const menuData = {};
@@ -251,8 +251,7 @@ function parseTableFormat(text, tokens) {
             month: month,
             day: day,
             weekday: weekday,
-            originalText: match[0],
-            position: match.index
+            originalText: match[0]
         });
     }
     
@@ -263,106 +262,62 @@ function parseTableFormat(text, tokens) {
         return menuData;
     }
     
-    // 2. 줄 단위로 분리
+    // 2. 전체 텍스트에서 메뉴만 추출 (단순하지만 효과적인 방법)
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     
-    // 3. 날짜가 있는 첫 줄 찾기
-    let headerLineIndex = -1;
-    for (let i = 0; i < lines.length; i++) {
-        if (lines[i].includes(dates[0].originalText)) {
-            headerLineIndex = i;
-            break;
-        }
-    }
+    const allMenuItems = [];
     
-    console.log('📍 날짜 헤더 줄:', headerLineIndex);
-    
-    if (headerLineIndex === -1) {
-        console.log('❌ 날짜 헤더를 찾을 수 없습니다');
-        return menuData;
-    }
-    
-    const headerLine = lines[headerLineIndex];
-    
-    // 4. 각 날짜의 텍스트 위치 파악 (문자 인덱스)
-    const datePositions = dates.map((date, idx) => {
-        const start = headerLine.indexOf(date.originalText);
-        const end = idx < dates.length - 1 
-            ? headerLine.indexOf(dates[idx + 1].originalText)
-            : headerLine.length;
-        return { ...date, columnStart: start, columnEnd: end };
-    });
-    
-    console.log('📊 각 날짜 열 위치:', datePositions.map(d => 
-        `${d.dateStr}: ${d.columnStart}-${d.columnEnd}`
-    ));
-    
-    // 5. 메뉴 줄 수집 (날짜 헤더 다음 줄부터)
-    const menuLines = [];
-    for (let i = headerLineIndex + 1; i < lines.length; i++) {
-        const line = lines[i];
+    for (const line of lines) {
+        // 날짜 줄 건너뛰기
+        if (/\d{1,2}월/.test(line) || /\d{1,2}일/.test(line)) continue;
         
-        // 메뉴 섹션 종료 조건
-        if (line.includes('원산지')) {
-            console.log(`📍 메뉴 섹션 종료: ${i}번째 줄 (원산지 발견)`);
-            break;
+        // 제외할 키워드
+        if (line.includes('원산지') || line.includes('영양소') || 
+            line.includes('에너지') || line.includes('칼슘') ||
+            line.includes('평균') || line.includes('국내산') ||
+            line.includes('학교급식') || line.includes('인천') ||
+            line.includes('탄수화물') || line.includes('단백질') ||
+            line.includes('비타민') || line.includes('철분') ||
+            line.includes('티아민') || line.includes('리보플라빈') ||
+            /kcal|RAE|mg|g\)/.test(line)) {
+            continue;
         }
         
-        // 영양소 정보가 나오면 종료
-        if (line.includes('영양소') || line.includes('에너지') || 
-            line.includes('칼슘') || line.includes('평균') ||
-            line.includes('국내산') || line.includes('학교급식')) {
-            console.log(`📍 메뉴 섹션 종료: ${i}번째 줄`);
-            break;
-        }
-        
-        // 한글이 있는 줄은 일단 모두 수집 (필터는 나중에)
-        if (/[가-힣]/.test(line)) {
-            menuLines.push(line);
-            console.log(`  ✅ ${i}번째 줄 수집: "${line.substring(0, 50)}..."`);
-        }
-    }
-    
-    console.log(`📋 메뉴 줄 총 ${menuLines.length}개 수집`);
-    
-    // 6. 각 날짜별로 메뉴 추출
-    datePositions.forEach((date, idx) => {
-        const menus = [];
-        
-        console.log(`\n🔍 ${date.dateStr} 메뉴 추출 시작 (열 ${date.columnStart}-${date.columnEnd})`);
-        
-        menuLines.forEach((line, lineIdx) => {
-            // 해당 날짜의 열 범위에서 텍스트 추출
-            let menuText = '';
+        // 한글이 있고, 음식 이름처럼 보이는 것만
+        if (/[가-힣]{2,}/.test(line)) {
+            // 알레르기 정보 제거
+            let cleaned = line.replace(/\([0-9\.\s]+\)/g, '').trim();
+            // 화살표 처리
+            cleaned = cleaned.replace(/\s*->\s*/g, ' / ').trim();
+            // 여러 공백을 하나로
+            cleaned = cleaned.replace(/\s+/g, ' ');
             
-            if (line.length >= date.columnStart) {
-                menuText = line.substring(
-                    date.columnStart, 
-                    Math.min(date.columnEnd, line.length)
-                ).trim();
+            // 너무 짧거나 숫자만 있는 건 제외
+            if (cleaned.length > 1 && !/^[\d\s\.\,\-\/]+$/.test(cleaned)) {
+                allMenuItems.push(cleaned);
             }
-            
-            // 메뉴 항목인지 검증
-            if (menuText && isValidMenuItem(menuText)) {
-                // 알레르기 정보 제거
-                let cleaned = menuText.replace(/\([0-9\.\s]+\)/g, '').trim();
-                // 화살표 처리
-                cleaned = cleaned.replace(/\s*->\s*/g, ' / ').trim();
-                // 여러 공백을 하나로
-                cleaned = cleaned.replace(/\s+/g, ' ');
-                
-                if (cleaned.length > 1) {
-                    menus.push(cleaned);
-                    console.log(`  ✅ ${lineIdx}번 줄: "${cleaned}"`);
-                }
-            }
-        });
+        }
+    }
+    
+    console.log(`📋 전체 메뉴 항목 ${allMenuItems.length}개 추출:`, allMenuItems.slice(0, 20));
+    
+    // 3. 메뉴를 5개 날짜에 균등 배분
+    // 가정: 각 날짜마다 대략 비슷한 수의 메뉴 (보통 5-8개)
+    const menusPerDate = Math.floor(allMenuItems.length / dates.length);
+    
+    console.log(`📊 날짜당 예상 메뉴 수: ${menusPerDate}개`);
+    
+    dates.forEach((date, idx) => {
+        const start = idx * menusPerDate;
+        const end = idx === dates.length - 1 
+            ? allMenuItems.length  // 마지막 날짜는 남은 메뉴 전부
+            : (idx + 1) * menusPerDate;
+        
+        const menus = allMenuItems.slice(start, end);
         
         if (menus.length > 0) {
             menuData[date.dateStr] = menus;
-            console.log(`✅ ${date.dateStr}: 총 ${menus.length}개 메뉴`);
-        } else {
-            console.log(`⚠️ ${date.dateStr}: 메뉴 없음`);
+            console.log(`✅ ${date.dateStr}: ${menus.length}개 메뉴`, menus);
         }
     });
     
