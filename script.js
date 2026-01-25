@@ -148,8 +148,33 @@ function extractMenuData(text) {
     // 줄 단위로 분리
     const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     
-    // 날짜 패턴 (다양한 형식 지원)
-    // 예: "1월 20일", "01/20", "2025-01-20", "1.20", "20일" 등
+    // 전체 텍스트를 공백으로 분리한 토큰 배열도 준비
+    const tokens = text.split(/\s+/).filter(token => token.length > 0);
+    
+    console.log('📄 PDF 파싱 시작 - 총 줄 수:', lines.length);
+    console.log('📄 전체 텍스트 토큰:', tokens.slice(0, 50)); // 처음 50개만 로그
+    
+    // 방법 1: 줄 기반 파싱 (기존 방식)
+    const lineBasedData = parseLineByLine(lines);
+    
+    // 방법 2: 테이블 형식 파싱 (새로 추가 - 업로드한 PDF용)
+    const tableBasedData = parseTableFormat(text, tokens);
+    
+    // 두 방식의 결과를 합침 (테이블 방식 우선)
+    Object.assign(menuData, lineBasedData, tableBasedData);
+    
+    console.log('✅ 파싱 완료 - 인식된 날짜 수:', Object.keys(menuData).length);
+    console.log('📋 인식된 데이터:', menuData);
+    
+    return menuData;
+}
+
+/**
+ * 줄 단위 파싱 (기존 방식)
+ */
+function parseLineByLine(lines) {
+    const menuData = {};
+    
     const datePatterns = [
         /(\d{1,2})월\s*(\d{1,2})일/,           // "1월 20일"
         /(\d{4})-(\d{1,2})-(\d{1,2})/,        // "2025-01-20"
@@ -161,22 +186,16 @@ function extractMenuData(text) {
     let currentDate = null;
     let currentMenuItems = [];
     
-    // 각 줄을 분석
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        
-        // 날짜 패턴 매칭 시도
         let dateFound = false;
         
         for (const pattern of datePatterns) {
             const match = line.match(pattern);
             if (match) {
-                // 이전 날짜의 메뉴 저장
                 if (currentDate && currentMenuItems.length > 0) {
                     menuData[currentDate] = [...currentMenuItems];
                 }
-                
-                // 새로운 날짜 파싱
                 currentDate = parseDateFromMatch(match, pattern);
                 currentMenuItems = [];
                 dateFound = true;
@@ -184,18 +203,108 @@ function extractMenuData(text) {
             }
         }
         
-        // 날짜가 아니면 메뉴 항목으로 간주
         if (!dateFound && currentDate) {
-            // 메뉴로 보이는 항목만 추가 (특수문자나 숫자만 있는 줄 제외)
             if (isMenuLine(line)) {
                 currentMenuItems.push(line);
             }
         }
     }
     
-    // 마지막 날짜의 메뉴 저장
     if (currentDate && currentMenuItems.length > 0) {
         menuData[currentDate] = [...currentMenuItems];
+    }
+    
+    return menuData;
+}
+
+/**
+ * 테이블 형식 파싱 (새로 추가 - 가로 배치 테이블용)
+ * 예: "12월 29일(월) 12월 30일(화) ..."
+ */
+function parseTableFormat(text, tokens) {
+    const menuData = {};
+    
+    // 날짜 패턴 찾기 (월/일 형식)
+    const datePattern = /(\d{1,2})월\s*(\d{1,2})일\s*\((.)\)/g;
+    const dates = [];
+    let match;
+    
+    // 모든 날짜 찾기
+    while ((match = datePattern.exec(text)) !== null) {
+        const month = parseInt(match[1]);
+        const day = parseInt(match[2]);
+        const weekday = match[3];
+        
+        // 연도 추정 (현재 연도 기준)
+        let year = new Date().getFullYear();
+        const currentMonth = new Date().getMonth() + 1;
+        
+        // 12월인데 현재가 1월이면 작년
+        if (month === 12 && currentMonth === 1) {
+            year = year - 1;
+        }
+        // 1월인데 현재가 12월이면 내년
+        else if (month === 1 && currentMonth === 12) {
+            year = year + 1;
+        }
+        
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        dates.push({
+            dateStr: dateStr,
+            month: month,
+            day: day,
+            weekday: weekday,
+            originalText: match[0]
+        });
+    }
+    
+    console.log('📅 테이블에서 인식된 날짜:', dates);
+    
+    if (dates.length === 0) {
+        return menuData;
+    }
+    
+    // 각 날짜별로 메뉴 추출 시도
+    for (let i = 0; i < dates.length; i++) {
+        const currentDate = dates[i];
+        const nextDate = dates[i + 1];
+        
+        // 현재 날짜 텍스트 위치 찾기
+        const currentDateIndex = text.indexOf(currentDate.originalText);
+        const nextDateIndex = nextDate ? text.indexOf(nextDate.originalText) : text.length;
+        
+        // 현재 날짜와 다음 날짜 사이의 텍스트 추출
+        const sectionText = text.substring(currentDateIndex, nextDateIndex);
+        
+        // 메뉴 항목 추출 (한글이 포함된 줄만)
+        const menuLines = sectionText
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => {
+                // 날짜 줄 제외
+                if (line.includes('월') && line.includes('일')) return false;
+                // 한글이 있고, 음식명으로 보이는 것만
+                if (!/[가-힣]/.test(line)) return false;
+                // 너무 짧은 것 제외
+                if (line.length < 2) return false;
+                // "원산지", "영양소" 등 제외
+                if (line.includes('원산지') || line.includes('영양소') || 
+                    line.includes('에너지') || line.includes('칼슘') ||
+                    line.includes('국내산')) return false;
+                
+                return true;
+            });
+        
+        // 메뉴에서 알레르기 표시 제거 (괄호 안 숫자들)
+        const cleanedMenu = menuLines.map(line => {
+            // (1.2.5.6.10.13) 같은 패턴 제거
+            return line.replace(/\([0-9\.\s]+\)/g, '').trim();
+        }).filter(line => line.length > 0);
+        
+        if (cleanedMenu.length > 0) {
+            menuData[currentDate.dateStr] = cleanedMenu;
+            console.log(`✅ ${currentDate.dateStr} 메뉴 추출:`, cleanedMenu);
+        }
     }
     
     return menuData;
