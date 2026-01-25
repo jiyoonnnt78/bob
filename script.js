@@ -269,21 +269,15 @@ function parseTableFormat(text, tokens) {
     
     for (const line of lines) {
         // 날짜 줄 건너뛰기
-        if (/\d{1,2}월/.test(line) || /\d{1,2}일/.test(line)) continue;
+        if (/\d{1,2}월/.test(line) && /\d{1,2}일/.test(line)) continue;
         
-        // 제외할 키워드
-        if (line.includes('원산지') || line.includes('영양소') || 
-            line.includes('에너지') || line.includes('칼슘') ||
-            line.includes('평균') || line.includes('국내산') ||
-            line.includes('학교급식') || line.includes('인천') ||
-            line.includes('탄수화물') || line.includes('단백질') ||
-            line.includes('비타민') || line.includes('철분') ||
-            line.includes('티아민') || line.includes('리보플라빈') ||
-            /kcal|RAE|mg|g\)/.test(line)) {
+        // 확실히 제외할 키워드만 (최소한으로)
+        if (line.includes('원산지') || line.includes('학교급식') || 
+            /kcal|RAE|칼슘|평균|권장|섭취량/.test(line)) {
             continue;
         }
         
-        // 한글이 있고, 음식 이름처럼 보이는 것만
+        // 한글 2글자 이상만
         if (/[가-힣]{2,}/.test(line)) {
             // 알레르기 정보 제거
             let cleaned = line.replace(/\([0-9\.\s]+\)/g, '').trim();
@@ -292,9 +286,10 @@ function parseTableFormat(text, tokens) {
             // 여러 공백을 하나로
             cleaned = cleaned.replace(/\s+/g, ' ');
             
-            // 너무 짧거나 숫자만 있는 건 제외
-            if (cleaned.length > 1 && !/^[\d\s\.\,\-\/]+$/.test(cleaned)) {
+            // 최소한의 조건만 (1글자 이상, 한글 포함)
+            if (cleaned.length > 0 && /[가-힣]/.test(cleaned)) {
                 allMenuItems.push(cleaned);
+                console.log(`  ✅ 메뉴 추가: "${cleaned}"`);
             }
         }
     }
