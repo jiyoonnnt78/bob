@@ -303,17 +303,23 @@ function parseTableFormat(text, tokens) {
         const line = lines[i];
         
         // 메뉴 섹션 종료 조건
-        if (line.includes('원산지') || line.includes('영양소') || 
-            line.includes('에너지') || line.includes('국내산') ||
-            line.includes('평균') || line.includes('칼슘') ||
-            line.includes('학교급식')) {
+        if (line.includes('원산지')) {
+            console.log(`📍 메뉴 섹션 종료: ${i}번째 줄 (원산지 발견)`);
+            break;
+        }
+        
+        // 영양소 정보가 나오면 종료
+        if (line.includes('영양소') || line.includes('에너지') || 
+            line.includes('칼슘') || line.includes('평균') ||
+            line.includes('국내산') || line.includes('학교급식')) {
             console.log(`📍 메뉴 섹션 종료: ${i}번째 줄`);
             break;
         }
         
-        // 한글이 있는 줄만
+        // 한글이 있는 줄은 일단 모두 수집 (필터는 나중에)
         if (/[가-힣]/.test(line)) {
             menuLines.push(line);
+            console.log(`  ✅ ${i}번째 줄 수집: "${line.substring(0, 50)}..."`);
         }
     }
     
