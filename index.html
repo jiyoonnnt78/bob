@@ -73,18 +73,38 @@
                 </div>
             </section>
 
-            <!-- 4단계: 급식 이미지 영역 (테스트용 placeholder) -->
+            <!-- 4단계: 급식 이미지 영역 (AI 이미지 생성) -->
             <section class="image-section" id="imageSection">
                 <div class="section-header">
                     <h2>🖼️ 4단계: 급식 이미지</h2>
-                    <span class="beta-badge">추후 AI 연동 예정</span>
+                    <span class="beta-badge">AI 이미지 생성</span>
                 </div>
                 <div class="image-display">
-                    <!-- 이미지 생성 placeholder -->
+                    
+                    <!-- 이미지 생성 버튼 -->
+                    <div class="image-controls">
+                        <button id="generateImageBtn" class="generate-btn">
+                            🎨 급식 이미지 생성하기
+                        </button>
+                    </div>
+                    
+                    <!-- 로딩 상태 표시 -->
+                    <div class="loading-state" id="loadingState" style="display: none;">
+                        <div class="spinner"></div>
+                        <p>AI가 급식 이미지를 생성하고 있습니다...</p>
+                    </div>
+                    
+                    <!-- 이미지 결과 표시 영역 -->
+                    <div class="image-result" id="imageResult" style="display: none;">
+                        <img id="generatedImage" src="" alt="생성된 급식 이미지" class="generated-image">
+                        <div class="image-info" id="imageInfo"></div>
+                    </div>
+                    
+                    <!-- 이미지 생성 placeholder (초기 상태) -->
                     <div class="image-placeholder" id="imagePlaceholder">
                         <div class="placeholder-icon">🍱</div>
                         <p class="placeholder-text">급식 이미지 생성 영역</p>
-                        <p class="placeholder-subtext">(추후 Gemini AI로 실제 이미지 생성)</p>
+                        <p class="placeholder-subtext">(위 버튼을 눌러 AI 이미지를 생성하세요)</p>
                         <div class="placeholder-info" id="placeholderInfo">
                             <!-- 여기에 메뉴 기반 프롬프트 정보가 표시됨 -->
                         </div>
