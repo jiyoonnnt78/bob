@@ -129,6 +129,7 @@ async function handleFetchMealData() {
     }
 }
 
+
 /**
  * NEIS Open API로 급식 데이터 조회
  */
