@@ -5,121 +5,88 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>우리 학교 급식 식단표</title>
     <link rel="stylesheet" href="style.css">
-    <!-- PDF.js 라이브러리 로드 (브라우저에서 PDF 파싱) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
-    <!-- 전체 컨테이너 -->
-    <div class="container">
-        <!-- 헤더 -->
-        <header class="header">
-            <h1>🍚 우리 학교 급식 식단표</h1>
-            <p class="subtitle">PDF 파일을 업로드하고 날짜를 선택하세요</p>
-        </header>
+    <!-- 헤더 -->
+    <header class="header">
+        <div class="container">
+            <h1>🍽️ 우리 학교 급식 식단표</h1>
+            <p>NEIS 교육청 Open API로 실시간 급식 정보를 확인하세요</p>
+        </div>
+    </header>
 
-        <!-- 메인 콘텐츠 -->
-        <main class="main-content">
-            <!-- 1단계: PDF 업로드 섹션 -->
-            <section class="upload-section">
-                <div class="section-header">
-                    <h2>📄 1단계: 급식표 PDF 업로드</h2>
+    <!-- 메인 컨테이너 -->
+    <div class="container main-container">
+        
+        <!-- 1단계: 학교 및 날짜 설정 -->
+        <section class="card">
+            <h2>📅 1단계: 학교 및 날짜 선택</h2>
+            <p class="info-text">🏫 인천광역시교육청 소속 학교 전용</p>
+            <div class="input-section">
+                <div class="input-group">
+                    <label for="schoolCode">학교 코드:</label>
+                    <input type="text" id="schoolCode" placeholder="예: 7010569">
+                    <span class="input-hint">학교 고유 코드 (<a href="https://www.schoolinfo.go.kr" target="_blank">학교알리미</a>에서 확인)</span>
                 </div>
-                <div class="upload-area">
-                    <input 
-                        type="file" 
-                        id="pdfUpload" 
-                        accept="application/pdf"
-                        class="file-input"
-                    >
-                    <label for="pdfUpload" class="upload-label">
-                        <span class="upload-icon">📎</span>
-                        <span class="upload-text">PDF 파일 선택하기</span>
-                    </label>
-                    <p class="upload-status" id="uploadStatus">아직 파일이 선택되지 않았습니다</p>
+                
+                <div class="input-group">
+                    <label for="startDate">조회 시작일:</label>
+                    <input type="date" id="startDate">
                 </div>
-            </section>
+                
+                <div class="input-group">
+                    <label for="endDate">조회 종료일:</label>
+                    <input type="date" id="endDate">
+                </div>
+                
+                <button id="fetchBtn" class="fetch-btn">🔍 급식 정보 불러오기</button>
+                <p id="fetchStatus" class="status-text"></p>
+            </div>
+        </section>
 
-            <!-- 2단계: 날짜 선택 섹션 -->
-            <section class="date-section" id="dateSection">
-                <div class="section-header">
-                    <h2>📅 2단계: 날짜 선택</h2>
-                </div>
-                <div class="date-picker-area">
-                    <label for="dateInput" class="date-label">급식을 확인할 날짜:</label>
-                    <input 
-                        type="date" 
-                        id="dateInput" 
-                        class="date-input"
-                    >
-                    <button id="searchBtn" class="search-btn">급식 메뉴 보기</button>
-                </div>
-            </section>
+        <!-- 2단계: 날짜 선택 -->
+        <section id="dateSection" class="card" style="display: none;">
+            <h2>📅 2단계: 날짜 선택</h2>
+            <div class="date-selector">
+                <label for="dateInput">급식을 확인할 날짜:</label>
+                <input type="date" id="dateInput">
+                <button id="searchBtn" class="search-btn">급식 메뉴 보기</button>
+            </div>
+        </section>
 
-            <!-- 3단계: 급식 메뉴 표시 섹션 -->
-            <section class="menu-section" id="menuSection">
-                <div class="section-header">
-                    <h2>🍽️ 3단계: 오늘의 급식 메뉴</h2>
-                </div>
-                <div class="menu-display">
-                    <!-- 선택한 날짜 표시 -->
-                    <div class="selected-date" id="selectedDate">
-                        날짜를 선택해주세요
-                    </div>
-                    
-                    <!-- 급식 메뉴 목록 -->
-                    <div class="menu-list" id="menuList">
-                        <p class="no-menu">아직 메뉴를 불러오지 않았습니다</p>
-                    </div>
-                </div>
-            </section>
+        <!-- 3단계: 메뉴 표시 -->
+        <section id="menuSection" class="card" style="display: none;">
+            <h2>🍽️ 3단계: 급식 메뉴</h2>
+            <div class="menu-display">
+                <h3 id="selectedDate"></h3>
+                <div id="menuList" class="menu-list"></div>
+            </div>
+        </section>
 
-            <!-- 4단계: 급식 이미지 영역 (AI 이미지 생성) -->
-            <section class="image-section" id="imageSection">
-                <div class="section-header">
-                    <h2>🖼️ 4단계: 급식 이미지</h2>
-                    <span class="beta-badge">AI 이미지 생성</span>
-                </div>
-                <div class="image-display">
-                    
-                    <!-- 이미지 생성 버튼 -->
-                    <div class="image-controls">
-                        <button id="generateImageBtn" class="generate-btn">
-                            🎨 급식 이미지 생성하기
-                        </button>
-                    </div>
-                    
-                    <!-- 로딩 상태 표시 -->
-                    <div class="loading-state" id="loadingState" style="display: none;">
-                        <div class="spinner"></div>
-                        <p>AI가 급식 이미지를 생성하고 있습니다...</p>
-                    </div>
-                    
-                    <!-- 이미지 결과 표시 영역 -->
-                    <div class="image-result" id="imageResult" style="display: none;">
-                        <img id="generatedImage" src="" alt="생성된 급식 이미지" class="generated-image">
-                        <div class="image-info" id="imageInfo"></div>
-                    </div>
-                    
-                    <!-- 이미지 생성 placeholder (초기 상태) -->
-                    <div class="image-placeholder" id="imagePlaceholder">
-                        <div class="placeholder-icon">🍱</div>
-                        <p class="placeholder-text">급식 이미지 생성 영역</p>
-                        <p class="placeholder-subtext">(위 버튼을 눌러 AI 이미지를 생성하세요)</p>
-                        <div class="placeholder-info" id="placeholderInfo">
-                            <!-- 여기에 메뉴 기반 프롬프트 정보가 표시됨 -->
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </main>
+        <!-- 4단계: 이미지 생성 (Gemini API 사용) -->
+        <section id="imageSection" class="card" style="display: none;">
+            <h2>🖼️ 4단계: 급식 이미지 생성 (선택)</h2>
+            <div class="image-controls">
+                <input type="password" id="geminiApiKey" placeholder="Gemini API 키 (선택 사항)">
+                <button id="generateImageBtn" class="generate-btn">🎨 AI로 급식 이미지 생성하기</button>
+            </div>
+            <div id="loadingState" class="loading-state" style="display: none;">
+                <div class="spinner"></div>
+                <p>이미지 생성 중...</p>
+            </div>
+            <div id="imageResult" class="image-result" style="display: none;">
+                <img id="generatedImage" alt="생성된 급식 이미지">
+                <p id="imageInfo"></p>
+            </div>
+        </section>
 
-        <!-- 푸터 -->
-        <footer class="footer">
-            <p>💡 개발 테스트용 웹앱 | PDF 파싱 기능 동작 확인</p>
-        </footer>
     </div>
 
-    <!-- JavaScript 파일 로드 -->
+    <!-- Footer -->
+    <footer class="footer">
+        <p>💡 개발: NEIS Open API 연동 | 데이터 출처: 교육부 나이스</p>
+    </footer>
+
     <script src="script.js"></script>
 </body>
 </html>
