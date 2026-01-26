@@ -158,7 +158,7 @@ function extractMenuData(text) {
     const lineBasedData = parseLineByLine(lines);
     
     // 방법 2: 테이블 형식 파싱 (새로 추가 - 업로드한 PDF용)
-    const tableBasedData = parseTableFormat(text, tokens);
+    const tableBasedData = parseTableFormat(text, tokens, lines);
     
     // 두 방식의 결과를 합침 (테이블 방식 우선)
     Object.assign(menuData, lineBasedData, tableBasedData);
@@ -220,9 +220,19 @@ function parseLineByLine(lines) {
 /**
  * 테이블 형식 파싱 (가로 배치 테이블용)
  * PDF.js가 테이블을 제대로 못 읽는 경우를 대비한 강건한 파싱
+ * @param {string} text - PDF 전체 텍스트
+ * @param {Array} tokens - 텍스트를 공백으로 분리한 토큰 배열
+ * @param {Array} lines - 텍스트를 줄 단위로 분리한 배열
+ * @returns {Object} - 날짜별 메뉴 데이터
  */
-function parseTableFormat(text, tokens) {
+function parseTableFormat(text, tokens, lines) {
     const menuData = {};
+    
+    // 방어 코드: lines가 없거나 배열이 아닐 경우
+    if (!lines || !Array.isArray(lines)) {
+        console.warn('⚠️ parseTableFormat: lines가 유효하지 않습니다');
+        return menuData;
+    }
     
     console.log('🔍 테이블 형식 파싱 시작');
     
@@ -262,7 +272,7 @@ function parseTableFormat(text, tokens) {
         return menuData;
     }
     
-    // 2. 전체 텍스트에서 실제 메뉴만 추출
+    // 2. 전체 텍스트에서 실제 메뉴만 추출 (전달받은 lines 사용)
     const allMenuItems = [];
     for (const line of lines) {
         const originalLine = line;
