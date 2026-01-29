@@ -299,14 +299,14 @@ async function handleImageGeneration() {
 }
 
 /**
- * Gemini 2.0 Flash Exp로 급식 이미지 생성 시도
+ * Gemini 2.0 Flash로 급식 이미지 생성 시도
  */
 async function generateImageWithImagen3(menu, apiKey) {
     const menuText = menu.join(', ');
     const prompt = `A realistic photo of Korean elementary school lunch on a plastic cafeteria tray. The tray contains: ${menuText}. Natural lighting, appetizing but not exaggerated colors. Typical school cafeteria setting. High quality food photography.`;
     
-    // gemini-2.0-flash-exp 시도
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`;
+    // ⭐ gemini-2.0-flash 시도 (exp 아님)
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
     
     const payload = {
         contents: [{
@@ -320,7 +320,7 @@ async function generateImageWithImagen3(menu, apiKey) {
         }
     };
     
-    console.log('📤 Gemini 2.0 Flash Exp API 요청:', apiUrl);
+    console.log('📤 Gemini 2.0 Flash API 요청:', apiUrl);
     console.log('📦 Payload:', JSON.stringify(payload, null, 2));
     
     const response = await fetch(apiUrl, {
