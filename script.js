@@ -88,7 +88,7 @@ async function handleFetchMealData() {
     }
     
     // API 키 확인
-    if (CONFIG.API_KEY === 'AIzaSyD8xHxntPSYKNunSRFjqS5rB6TcCmHBYvQ') {
+    if (CONFIG.API_KEY === 'YOUR_API_KEY_HERE') {
         alert('❌ script.js에서 API_KEY를 실제 키로 교체해주세요!');
         return;
     }
@@ -299,13 +299,14 @@ async function handleImageGeneration() {
 }
 
 /**
- * Imagen 3로 급식 이미지 생성
+ * Gemini 2.0 Flash Exp로 급식 이미지 생성 시도
  */
 async function generateImageWithImagen3(menu, apiKey) {
     const menuText = menu.join(', ');
     const prompt = `A realistic photo of Korean elementary school lunch on a plastic cafeteria tray. The tray contains: ${menuText}. Natural lighting, appetizing but not exaggerated colors. Typical school cafeteria setting. High quality food photography.`;
     
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateContent?key=${apiKey}`;
+    // gemini-2.0-flash-exp 시도
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`;
     
     const payload = {
         contents: [{
@@ -314,11 +315,13 @@ async function generateImageWithImagen3(menu, apiKey) {
             }]
         }],
         generationConfig: {
-            responseModalities: ['IMAGE']
+            responseModalities: ['IMAGE'],
+            temperature: 0.4
         }
     };
     
-    console.log('📤 Imagen 3 API 요청:', apiUrl);
+    console.log('📤 Gemini 2.0 Flash Exp API 요청:', apiUrl);
+    console.log('📦 Payload:', JSON.stringify(payload, null, 2));
     
     const response = await fetch(apiUrl, {
         method: 'POST',
@@ -330,17 +333,28 @@ async function generateImageWithImagen3(menu, apiKey) {
 
     if (!response.ok) {
         const errorData = await response.json();
+        console.error('❌ API 오류:', errorData);
         throw new Error(errorData.error?.message || `HTTP 오류: ${response.status}`);
     }
 
     const result = await response.json();
+    console.log('📦 API 응답:', JSON.stringify(result, null, 2));
+    
+    // 이미지 데이터 찾기
     const base64Image = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
     
-    if (!base64Image) {
-        throw new Error('API 응답에서 이미지 데이터를 찾을 수 없습니다');
+    if (base64Image) {
+        console.log('✅ 이미지 생성 성공!');
+        return `data:image/png;base64,${base64Image}`;
     }
     
-    return `data:image/png;base64,${base64Image}`;
+    // 텍스트만 반환된 경우
+    const textResponse = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (textResponse) {
+        throw new Error(`⚠️ 이미지 생성 실패: 모델이 텍스트만 반환했습니다.\n\n${textResponse.substring(0, 200)}...`);
+    }
+    
+    throw new Error('API 응답에서 이미지 데이터를 찾을 수 없습니다');
 }
 
 // ===================================
