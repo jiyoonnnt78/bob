@@ -242,6 +242,19 @@ body {
     font-size: 1rem;
 }
 
+.api-link {
+    color: #667eea;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: bold;
+    transition: color 0.3s;
+}
+
+.api-link:hover {
+    color: #5568d3;
+    text-decoration: underline;
+}
+
 .generate-btn {
     width: 100%;
     padding: 15px;
