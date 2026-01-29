@@ -3,7 +3,7 @@
 // ===================================
 const CONFIG = {
     NEIS_API_URL: 'https://open.neis.go.kr/hub/mealServiceDietInfo',
-    API_KEY: '107e73dfab6c4572b7b0f07548ebaaf1', // ⚠️ 실제 API 키로 교체하세요!
+    API_KEY: 'AIzaSyD8xHxntPSYKNunSRFjqS5rB6TcCmHBYvQ', // ⚠️ 실제 API 키로 교체하세요!
     OFFICE_CODE: 'E10' // 인천교육청 코드 (고정)
 };
 
@@ -54,7 +54,7 @@ function init() {
     // 이벤트 리스너
     elements.fetchBtn.addEventListener('click', handleFetchMealData);
     elements.searchBtn.addEventListener('click', handleMenuSearch);
-    elements.generateImageBtn.addEventListener('click', handleImageGeneration);
+    elements.generateImageBtn.addEventListener('click', handleImageGeneration); // Imagen 3 활성화
     
     console.log('✅ 급식 웹앱 초기화 완료');
 }
@@ -146,6 +146,9 @@ async function fetchMealDataFromNEIS(officeCode, schoolCode, startDate, endDate)
     }
     
     const data = await response.json();
+    
+    // ✅ 디버깅: 전체 응답 확인
+    console.log('📦 NEIS API 전체 응답:', JSON.stringify(data, null, 2));
     
     // 오류 응답 체크
     if (data.RESULT) {
@@ -245,7 +248,7 @@ function handleMenuSearch() {
     }
     
     elements.menuSection.style.display = 'block';
-    elements.imageSection.style.display = 'block';
+    elements.imageSection.style.display = 'block'; // Imagen 3로 이미지 생성 가능
 }
 
 /**
@@ -258,7 +261,7 @@ function formatKoreanDate(dateStr) {
 }
 
 // ===================================
-// 이미지 생성 (Gemini API)
+// 이미지 생성 (Imagen 3)
 // ===================================
 async function handleImageGeneration() {
     if (!appState.currentMenu || appState.currentMenu.length === 0) {
@@ -278,7 +281,7 @@ async function handleImageGeneration() {
     elements.imageResult.style.display = 'none';
     
     try {
-        const imageUrl = await generateImageWithGemini(appState.currentMenu, apiKey);
+        const imageUrl = await generateImageWithImagen3(appState.currentMenu, apiKey);
         
         elements.generatedImage.src = imageUrl;
         elements.imageInfo.textContent = `📅 ${formatKoreanDate(appState.currentDate)} | 🍽️ ${appState.currentMenu.join(', ')}`;
@@ -287,6 +290,7 @@ async function handleImageGeneration() {
         elements.imageResult.style.display = 'block';
         
     } catch (error) {
+        console.error('이미지 생성 오류:', error);
         alert(`❌ 이미지 생성 실패: ${error.message}`);
         elements.loadingState.style.display = 'none';
     } finally {
@@ -295,34 +299,46 @@ async function handleImageGeneration() {
 }
 
 /**
- * Gemini로 이미지 생성
+ * Imagen 3로 급식 이미지 생성
  */
-async function generateImageWithGemini(menu, apiKey) {
-    const prompt = `A realistic photo of Korean school lunch on a cafeteria tray. The meal includes: ${menu.join(', ')}. Natural lighting, appetizing presentation, high quality food photography.`;
+async function generateImageWithImagen3(menu, apiKey) {
+    const menuText = menu.join(', ');
+    const prompt = `A realistic photo of Korean elementary school lunch on a plastic cafeteria tray. The tray contains: ${menuText}. Natural lighting, appetizing but not exaggerated colors. Typical school cafeteria setting. High quality food photography.`;
     
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateContent?key=${apiKey}`, {
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateContent?key=${apiKey}`;
+    
+    const payload = {
+        contents: [{
+            parts: [{
+                text: prompt
+            }]
+        }],
+        generationConfig: {
+            responseModalities: ['IMAGE']
+        }
+    };
+    
+    console.log('📤 Imagen 3 API 요청:', apiUrl);
+    
+    const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-            contents: [{
-                parts: [{
-                    text: prompt
-                }]
-            }],
-            generationConfig: {
-                temperature: 0.4
-            }
-        })
+        body: JSON.stringify(payload)
     });
 
     if (!response.ok) {
-        throw new Error('이미지 생성 실패');
+        const errorData = await response.json();
+        throw new Error(errorData.error?.message || `HTTP 오류: ${response.status}`);
     }
 
-    const data = await response.json();
-    const base64Image = data.candidates[0].content.parts[0].inline_data.data;
+    const result = await response.json();
+    const base64Image = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+    
+    if (!base64Image) {
+        throw new Error('API 응답에서 이미지 데이터를 찾을 수 없습니다');
+    }
     
     return `data:image/png;base64,${base64Image}`;
 }
