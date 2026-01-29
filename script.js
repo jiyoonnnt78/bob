@@ -3,12 +3,12 @@
 // ===================================
 const CONFIG = {
     NEIS_API_URL: 'https://open.neis.go.kr/hub/mealServiceDietInfo',
-    API_KEY: '107e73dfab6c4572b7b0f07548ebaaf1', // ⚠️ 실제 API 키로 교체하세요!
-    OFFICE_CODE: 'E10' // 인천교육청 코드 (고정)
+    NEIS_API_KEY: 'YOUR_NEIS_API_KEY_HERE', // ⚠️ NEIS API 키 입력
+    HUGGINGFACE_API_KEY: 'YOUR_HUGGINGFACE_TOKEN_HERE', // ⚠️ Hugging Face 토큰 입력
+    OFFICE_CODE: 'E10' // 인천교육청 (고정)
 };
 
 let appState = {
-    menuData: {},
     currentDate: '',
     currentMenu: []
 };
@@ -18,21 +18,15 @@ let appState = {
 // ===================================
 const elements = {
     schoolCode: document.getElementById('schoolCode'),
-    startDate: document.getElementById('startDate'),
-    endDate: document.getElementById('endDate'),
+    selectedDate: document.getElementById('selectedDate'),
     fetchBtn: document.getElementById('fetchBtn'),
     fetchStatus: document.getElementById('fetchStatus'),
     
-    dateSection: document.getElementById('dateSection'),
-    dateInput: document.getElementById('dateInput'),
-    searchBtn: document.getElementById('searchBtn'),
-    
     menuSection: document.getElementById('menuSection'),
-    selectedDate: document.getElementById('selectedDate'),
+    selectedDateDisplay: document.getElementById('selectedDateDisplay'),
     menuList: document.getElementById('menuList'),
     
     imageSection: document.getElementById('imageSection'),
-    geminiApiKey: document.getElementById('geminiApiKey'),
     generateImageBtn: document.getElementById('generateImageBtn'),
     loadingState: document.getElementById('loadingState'),
     imageResult: document.getElementById('imageResult'),
@@ -44,81 +38,80 @@ const elements = {
 // 초기화
 // ===================================
 function init() {
-    // 오늘 날짜 기본값 설정
-    const today = new Date();
-    const todayStr = formatDateInput(today);
-    
-    elements.startDate.value = todayStr;
-    elements.endDate.value = todayStr;
+    // 오늘 날짜 기본값
+    const today = new Date().toISOString().split('T')[0];
+    elements.selectedDate.value = today;
     
     // 이벤트 리스너
     elements.fetchBtn.addEventListener('click', handleFetchMealData);
-    elements.searchBtn.addEventListener('click', handleMenuSearch);
-    elements.generateImageBtn.addEventListener('click', handleImageGeneration); // Imagen 3 활성화
+    elements.generateImageBtn.addEventListener('click', handleImageGeneration);
     
     console.log('✅ 급식 웹앱 초기화 완료');
 }
 
-/**
- * Date를 YYYY-MM-DD 형식으로 변환
- */
-function formatDateInput(date) {
-    return date.toISOString().split('T')[0];
-}
-
-/**
- * YYYY-MM-DD를 YYYYMMDD로 변환
- */
-function formatDateApi(dateStr) {
-    return dateStr.replace(/-/g, '');
-}
-
 // ===================================
-// NEIS API 호출
+// NEIS API 호출 (단일 날짜)
 // ===================================
 async function handleFetchMealData() {
     const schoolCode = elements.schoolCode.value.trim();
-    const startDate = elements.startDate.value;
-    const endDate = elements.endDate.value;
+    const selectedDate = elements.selectedDate.value;
     
     // 입력 검증
-    if (!schoolCode || !startDate || !endDate) {
-        alert('❌ 모든 필드를 입력해주세요!');
+    if (!schoolCode || !selectedDate) {
+        alert('❌ 학교 코드와 날짜를 입력해주세요!');
         return;
     }
     
     // API 키 확인
-    if (CONFIG.API_KEY === 'YOUR_API_KEY_HERE') {
-        alert('❌ script.js에서 API_KEY를 실제 키로 교체해주세요!');
+    if (CONFIG.NEIS_API_KEY === 'YOUR_NEIS_API_KEY_HERE') {
+        alert('❌ script.js에서 NEIS_API_KEY를 실제 키로 교체해주세요!');
         return;
     }
     
-    elements.fetchStatus.textContent = '📡 NEIS API 호출 중...';
+    elements.fetchStatus.textContent = '📡 급식 정보 조회 중...';
     elements.fetchStatus.className = 'status-text';
     elements.fetchBtn.disabled = true;
     
     try {
-        // NEIS API 호출 (인천교육청 코드 자동 사용)
+        // 날짜 포맷 변환 (YYYY-MM-DD → YYYYMMDD)
+        const apiDate = selectedDate.replace(/-/g, '');
+        
+        // NEIS API 호출 (시작일 = 종료일)
         const menuData = await fetchMealDataFromNEIS(
-            CONFIG.OFFICE_CODE, // 인천교육청 (E10)
+            CONFIG.OFFICE_CODE,
             schoolCode,
-            formatDateApi(startDate),
-            formatDateApi(endDate)
+            apiDate,
+            apiDate // 같은 날짜
         );
         
-        // 상태 업데이트
-        appState.menuData = menuData;
+        // 메뉴 데이터 저장
+        const menu = menuData[selectedDate];
         
-        // UI 업데이트
-        const dateCount = Object.keys(menuData).length;
-        elements.fetchStatus.textContent = `✅ ${dateCount}개 날짜의 급식 정보를 불러왔습니다!`;
+        if (!menu || menu.length === 0) {
+            elements.fetchStatus.textContent = '📭 해당 날짜의 급식 정보가 없습니다';
+            elements.fetchStatus.className = 'status-text error';
+            elements.menuSection.style.display = 'none';
+            elements.imageSection.style.display = 'none';
+            return;
+        }
+        
+        // 상태 업데이트
+        appState.currentDate = selectedDate;
+        appState.currentMenu = menu;
+        
+        // UI 표시
+        elements.selectedDateDisplay.textContent = formatKoreanDate(selectedDate);
+        elements.menuList.innerHTML = menu.map(item => 
+            `<div class="menu-item">${item}</div>`
+        ).join('');
+        
+        elements.fetchStatus.textContent = `✅ 급식 정보를 불러왔습니다!`;
         elements.fetchStatus.className = 'status-text success';
         
-        // 다음 단계 표시
-        elements.dateSection.style.display = 'block';
-        elements.dateInput.value = startDate;
+        elements.menuSection.style.display = 'block';
+        elements.imageSection.style.display = 'block';
         
-        console.log('✅ 급식 데이터:', menuData);
+        console.log('✅ 급식 메뉴:', menu);
         
     } catch (error) {
         console.error('❌ API 호출 오류:', error);
@@ -133,12 +126,10 @@ async function handleFetchMealData() {
  * NEIS Open API로 급식 데이터 조회
  */
 async function fetchMealDataFromNEIS(officeCode, schoolCode, startDate, endDate) {
-    // API URL 생성
-    const url = `${CONFIG.NEIS_API_URL}?KEY=${CONFIG.API_KEY}&Type=json&ATPT_OFCDC_SC_CODE=${officeCode}&SD_SCHUL_CODE=${schoolCode}&MLSV_FROM_YMD=${startDate}&MLSV_TO_YMD=${endDate}`;
+    const url = `${CONFIG.NEIS_API_URL}?KEY=${CONFIG.NEIS_API_KEY}&Type=json&ATPT_OFCDC_SC_CODE=${officeCode}&SD_SCHUL_CODE=${schoolCode}&MLSV_FROM_YMD=${startDate}&MLSV_TO_YMD=${endDate}`;
     
     console.log('📡 NEIS API 요청:', url);
     
-    // API 호출
     const response = await fetch(url);
     
     if (!response.ok) {
@@ -146,9 +137,7 @@ async function fetchMealDataFromNEIS(officeCode, schoolCode, startDate, endDate)
     }
     
     const data = await response.json();
-    
-    // ✅ 디버깅: 전체 응답 확인
-    console.log('📦 NEIS API 전체 응답:', JSON.stringify(data, null, 2));
+    console.log('📦 NEIS API 응답:', data);
     
     // 오류 응답 체크
     if (data.RESULT) {
@@ -162,12 +151,11 @@ async function fetchMealDataFromNEIS(officeCode, schoolCode, startDate, endDate)
 }
 
 /**
- * NEIS API 응답을 우리가 원하는 형식으로 변환
+ * NEIS API 응답 파싱
  */
 function parseNEISResponse(data) {
     const menuData = {};
     
-    // mealServiceDietInfo 배열 확인
     if (!data.mealServiceDietInfo || !data.mealServiceDietInfo[1]) {
         console.warn('⚠️ 급식 데이터가 없습니다');
         return menuData;
@@ -180,12 +168,8 @@ function parseNEISResponse(data) {
         const dateStr = row.MLSV_YMD;
         const formattedDate = `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
         
-        // 메뉴 (DDISH_NM 필드)
-        // 형식: "보리밥<br/>스팸짜글이(1.2.5.6.10.13.15.16)<br/>소불고기(5.6.13.16)<br/>..."
-        const dishName = row.DDISH_NM;
-        
         // 메뉴 정리
-        const cleanedMenu = cleanMenuText(dishName);
+        const cleanedMenu = cleanMenuText(row.DDISH_NM);
         
         if (cleanedMenu.length > 0) {
             menuData[formattedDate] = cleanedMenu;
@@ -197,58 +181,23 @@ function parseNEISResponse(data) {
 
 /**
  * 메뉴 텍스트 정리
- * - <br/> 기준으로 분리
- * - 알레르기 정보 (괄호) 제거
- * - 빈 줄 제거
  */
 function cleanMenuText(text) {
     if (!text) return [];
     
-    // <br/> 또는 <br> 기준으로 분리
+    // <br/> 기준으로 분리
     const items = text.split(/<br\s*\/?>/i);
     
     // 알레르기 정보 제거 및 정리
     const cleaned = items
         .map(item => {
-            // 알레르기 정보 제거: (1.2.5.6) 같은 괄호 제거
             let clean = item.replace(/\([0-9\.\s]+\)/g, '').trim();
-            // 공백 정리
             clean = clean.replace(/\s+/g, ' ');
             return clean;
         })
-        .filter(item => item.length > 0); // 빈 항목 제거
+        .filter(item => item.length > 0);
     
     return cleaned;
-}
-
-// ===================================
-// 메뉴 검색 & 표시
-// ===================================
-function handleMenuSearch() {
-    const date = elements.dateInput.value;
-    
-    if (!date) {
-        alert('❌ 날짜를 선택해주세요!');
-        return;
-    }
-    
-    const menu = appState.menuData[date];
-    
-    if (!menu || menu.length === 0) {
-        elements.selectedDate.textContent = formatKoreanDate(date);
-        elements.menuList.innerHTML = '<p class="no-menu">📭 해당 날짜의 급식 정보가 없습니다</p>';
-    } else {
-        appState.currentDate = date;
-        appState.currentMenu = menu;
-        
-        elements.selectedDate.textContent = formatKoreanDate(date);
-        elements.menuList.innerHTML = menu.map(item => 
-            `<div class="menu-item">${item}</div>`
-        ).join('');
-    }
-    
-    elements.menuSection.style.display = 'block';
-    elements.imageSection.style.display = 'block'; // Imagen 3로 이미지 생성 가능
 }
 
 /**
@@ -261,18 +210,17 @@ function formatKoreanDate(dateStr) {
 }
 
 // ===================================
-// 이미지 생성 (Imagen 3)
+// 이미지 생성 (Hugging Face FLUX)
 // ===================================
 async function handleImageGeneration() {
     if (!appState.currentMenu || appState.currentMenu.length === 0) {
-        alert('❌ 먼저 날짜를 선택하고 메뉴를 확인해주세요!');
+        alert('❌ 먼저 급식 정보를 불러와주세요!');
         return;
     }
     
-    const apiKey = elements.geminiApiKey.value.trim();
-    
-    if (!apiKey) {
-        alert('❌ Gemini API 키를 입력해주세요!\n\nhttps://aistudio.google.com/app/apikey 에서 발급받을 수 있습니다.');
+    // API 키 확인
+    if (CONFIG.HUGGINGFACE_API_KEY === 'YOUR_HUGGINGFACE_TOKEN_HERE') {
+        alert('❌ script.js에서 HUGGINGFACE_API_KEY를 실제 토큰으로 교체해주세요!');
         return;
     }
     
@@ -281,7 +229,7 @@ async function handleImageGeneration() {
     elements.imageResult.style.display = 'none';
     
     try {
-        const imageUrl = await generateImageWithImagen3(appState.currentMenu, apiKey);
+        const imageUrl = await generateImageWithFLUX(appState.currentMenu);
         
         elements.generatedImage.src = imageUrl;
         elements.imageInfo.textContent = `📅 ${formatKoreanDate(appState.currentDate)} | 🍽️ ${appState.currentMenu.join(', ')}`;
@@ -299,62 +247,41 @@ async function handleImageGeneration() {
 }
 
 /**
- * Gemini 2.0 Flash로 급식 이미지 생성 시도
+ * Hugging Face FLUX로 이미지 생성
  */
-async function generateImageWithImagen3(menu, apiKey) {
+async function generateImageWithFLUX(menu) {
     const menuText = menu.join(', ');
-    const prompt = `A realistic photo of Korean elementary school lunch on a plastic cafeteria tray. The tray contains: ${menuText}. Natural lighting, appetizing but not exaggerated colors. Typical school cafeteria setting. High quality food photography.`;
     
-    // ⭐ gemini-2.0-flash 시도 (exp 아님)
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const modelId = "black-forest-labs/FLUX.1-schnell";
+    const url = `https://api-inference.huggingface.co/models/${modelId}`;
     
-    const payload = {
-        contents: [{
-            parts: [{
-                text: prompt
-            }]
-        }],
-        generationConfig: {
-            responseModalities: ['IMAGE'],
-            temperature: 0.4
-        }
-    };
+    const prompt = `A realistic photo of a Korean elementary school lunch on a stainless steel tray with compartments, top-down view. The tray contains: ${menuText}. Natural lighting, appetizing colors, typical school cafeteria food presentation.`;
     
-    console.log('📤 Gemini 2.0 Flash API 요청:', apiUrl);
-    console.log('📦 Payload:', JSON.stringify(payload, null, 2));
+    console.log('📤 Hugging Face FLUX API 요청');
+    console.log('🎨 프롬프트:', prompt);
     
-    const response = await fetch(apiUrl, {
+    const response = await fetch(url, {
         method: 'POST',
         headers: {
+            'Authorization': `Bearer ${CONFIG.HUGGINGFACE_API_KEY}`,
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+            inputs: prompt
+        })
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        console.error('❌ API 오류:', errorData);
-        throw new Error(errorData.error?.message || `HTTP 오류: ${response.status}`);
+        const errorText = await response.text();
+        console.error('❌ API 오류:', errorText);
+        throw new Error(`Hugging Face API 오류: ${response.status}`);
     }
 
-    const result = await response.json();
-    console.log('📦 API 응답:', JSON.stringify(result, null, 2));
+    const imageBlob = await response.blob();
+    const imageUrl = URL.createObjectURL(imageBlob);
     
-    // 이미지 데이터 찾기
-    const base64Image = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
-    
-    if (base64Image) {
-        console.log('✅ 이미지 생성 성공!');
-        return `data:image/png;base64,${base64Image}`;
-    }
-    
-    // 텍스트만 반환된 경우
-    const textResponse = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (textResponse) {
-        throw new Error(`⚠️ 이미지 생성 실패: 모델이 텍스트만 반환했습니다.\n\n${textResponse.substring(0, 200)}...`);
-    }
-    
-    throw new Error('API 응답에서 이미지 데이터를 찾을 수 없습니다');
+    console.log('✅ 이미지 생성 성공!');
+    return imageUrl;
 }
 
 // ===================================
