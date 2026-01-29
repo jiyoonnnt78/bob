@@ -120,13 +120,14 @@ body {
 }
 
 .school-results {
-    max-height: 200px;
+    max-height: 300px;
     overflow-y: auto;
     border: 2px solid #ddd;
     border-radius: 8px;
     margin-top: 8px;
     background: white;
     display: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
 .school-results.active {
@@ -134,10 +135,14 @@ body {
 }
 
 .school-result-item {
-    padding: 12px 15px;
+    padding: 15px;
     cursor: pointer;
     border-bottom: 1px solid #eee;
     transition: background 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
 }
 
 .school-result-item:hover {
@@ -148,15 +153,48 @@ body {
     border-bottom: none;
 }
 
+.school-result-item.no-result {
+    justify-content: center;
+    color: #999;
+    cursor: default;
+}
+
+.school-result-item.no-result:hover {
+    background: white;
+}
+
+.school-info {
+    flex: 1;
+}
+
 .school-result-name {
     font-weight: bold;
     color: #333;
+    font-size: 1rem;
+    margin-bottom: 4px;
 }
 
 .school-result-address {
-    font-size: 0.85rem;
-    color: #666;
-    margin-top: 4px;
+    font-size: 0.8rem;
+    color: #999;
+}
+
+.school-select-btn {
+    padding: 8px 16px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+    flex-shrink: 0;
+}
+
+.school-select-btn:hover {
+    background: #5568d3;
+    transform: translateY(-1px);
 }
 
 .fetch-btn {
