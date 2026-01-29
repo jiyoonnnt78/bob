@@ -88,7 +88,7 @@ async function searchSchools(query) {
         const data = await response.json();
         
         if (data.RESULT) {
-            elements.schoolResults.innerHTML = '<div class="school-result-item">검색 결과가 없습니다</div>';
+            elements.schoolResults.innerHTML = '<div class="school-result-item no-result">검색 결과가 없습니다</div>';
             elements.schoolResults.classList.add('active');
             return;
         }
@@ -98,8 +98,11 @@ async function searchSchools(query) {
         // 검색 결과 표시
         elements.schoolResults.innerHTML = schools.map(school => `
             <div class="school-result-item" data-code="${school.SD_SCHUL_CODE}" data-name="${school.SCHUL_NM}">
-                <div class="school-result-name">${school.SCHUL_NM}</div>
-                <div class="school-result-address">${school.ORG_RDNMA || ''}</div>
+                <div class="school-info">
+                    <div class="school-result-name">${school.SCHUL_NM}</div>
+                    <div class="school-result-address">${school.ORG_RDNMA || ''}</div>
+                </div>
+                <button class="school-select-btn">선택</button>
             </div>
         `).join('');
         
@@ -123,7 +126,7 @@ async function searchSchools(query) {
         
     } catch (error) {
         console.error('학교 검색 오류:', error);
-        elements.schoolResults.innerHTML = '<div class="school-result-item">검색 중 오류가 발생했습니다</div>';
+        elements.schoolResults.innerHTML = '<div class="school-result-item no-result">검색 중 오류가 발생했습니다</div>';
         elements.schoolResults.classList.add('active');
     }
 }
