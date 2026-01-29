@@ -4,7 +4,7 @@
 const CONFIG = {
     NEIS_API_URL: 'https://open.neis.go.kr/hub/mealServiceDietInfo',
     NEIS_API_KEY: '107e73dfab6c4572b7b0f07548ebaaf1', // ⚠️ NEIS API 키 입력
-    HUGGINGFACE_API_KEY: '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', // ⚠️ Hugging Face 토큰 입력
+    HUGGINGFACE_API_KEY: 'YOUR_HUGGINGFACE_TOKEN_HERE', // ⚠️ Hugging Face 토큰 입력
     OFFICE_CODE: 'E10' // 인천교육청 (고정)
 };
 
@@ -17,6 +17,8 @@ let appState = {
 // DOM 요소
 // ===================================
 const elements = {
+    schoolSearch: document.getElementById('schoolSearch'),
+    schoolResults: document.getElementById('schoolResults'),
     schoolCode: document.getElementById('schoolCode'),
     selectedDate: document.getElementById('selectedDate'),
     fetchBtn: document.getElementById('fetchBtn'),
@@ -34,6 +36,9 @@ const elements = {
     imageInfo: document.getElementById('imageInfo')
 };
 
+// 디바운스 타이머
+let searchTimeout = null;
+
 // ===================================
 // 초기화
 // ===================================
@@ -41,6 +46,9 @@ function init() {
     // 오늘 날짜 기본값
     const today = new Date().toISOString().split('T')[0];
     elements.selectedDate.value = today;
+    
+    // 학교 검색 입력 이벤트
+    elements.schoolSearch.addEventListener('input', handleSchoolSearch);
     
     // 이벤트 리스너
     elements.fetchBtn.addEventListener('click', handleFetchMealData);
@@ -50,15 +58,91 @@ function init() {
 }
 
 // ===================================
+// 학교 검색
+// ===================================
+function handleSchoolSearch(e) {
+    const query = e.target.value.trim();
+    
+    // 디바운스 (300ms)
+    clearTimeout(searchTimeout);
+    
+    if (query.length < 2) {
+        elements.schoolResults.classList.remove('active');
+        elements.schoolCode.value = '';
+        return;
+    }
+    
+    searchTimeout = setTimeout(async () => {
+        await searchSchools(query);
+    }, 300);
+}
+
+async function searchSchools(query) {
+    try {
+        // NEIS 학교정보 API 호출
+        const url = `https://open.neis.go.kr/hub/schoolInfo?KEY=${CONFIG.NEIS_API_KEY}&Type=json&ATPT_OFCDC_SC_CODE=${CONFIG.OFFICE_CODE}&SCHUL_NM=${encodeURIComponent(query)}`;
+        
+        console.log('🔍 학교 검색:', query);
+        
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.RESULT) {
+            elements.schoolResults.innerHTML = '<div class="school-result-item">검색 결과가 없습니다</div>';
+            elements.schoolResults.classList.add('active');
+            return;
+        }
+        
+        const schools = data.schoolInfo[1].row;
+        
+        // 검색 결과 표시
+        elements.schoolResults.innerHTML = schools.map(school => `
+            <div class="school-result-item" data-code="${school.SD_SCHUL_CODE}" data-name="${school.SCHUL_NM}">
+                <div class="school-result-name">${school.SCHUL_NM}</div>
+                <div class="school-result-address">${school.ORG_RDNMA || ''}</div>
+            </div>
+        `).join('');
+        
+        elements.schoolResults.classList.add('active');
+        
+        // 검색 결과 클릭 이벤트
+        document.querySelectorAll('.school-result-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const code = item.dataset.code;
+                const name = item.dataset.name;
+                
+                if (code) {
+                    elements.schoolSearch.value = name;
+                    elements.schoolCode.value = code;
+                    elements.schoolResults.classList.remove('active');
+                    
+                    console.log('✅ 학교 선택:', name, code);
+                }
+            });
+        });
+        
+    } catch (error) {
+        console.error('학교 검색 오류:', error);
+        elements.schoolResults.innerHTML = '<div class="school-result-item">검색 중 오류가 발생했습니다</div>';
+        elements.schoolResults.classList.add('active');
+    }
+}
+
+// ===================================
 // NEIS API 호출 (단일 날짜)
 // ===================================
 async function handleFetchMealData() {
-    const schoolCode = elements.schoolCode.value.trim();
+    const schoolCode = elements.schoolCode.value;
     const selectedDate = elements.selectedDate.value;
     
     // 입력 검증
-    if (!schoolCode || !selectedDate) {
-        alert('❌ 학교 코드와 날짜를 입력해주세요!');
+    if (!schoolCode) {
+        alert('❌ 학교를 검색해서 선택해주세요!');
+        return;
+    }
+    
+    if (!selectedDate) {
+        alert('❌ 날짜를 선택해주세요!');
         return;
     }
     
