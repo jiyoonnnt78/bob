@@ -3,7 +3,7 @@
 // ===================================
 const CONFIG = {
     NEIS_API_URL: 'https://open.neis.go.kr/hub/mealServiceDietInfo',
-    API_KEY: 'AIzaSyD8xHxntPSYKNunSRFjqS5rB6TcCmHBYvQ', // ⚠️ 실제 API 키로 교체하세요!
+    API_KEY: '107e73dfab6c4572b7b0f07548ebaaf1', // ⚠️ 실제 API 키로 교체하세요!
     OFFICE_CODE: 'E10' // 인천교육청 코드 (고정)
 };
 
@@ -88,7 +88,7 @@ async function handleFetchMealData() {
     }
     
     // API 키 확인
-    if (CONFIG.API_KEY === 'YOUR_API_KEY_HERE') {
+    if (CONFIG.API_KEY === 'AIzaSyD8xHxntPSYKNunSRFjqS5rB6TcCmHBYvQ') {
         alert('❌ script.js에서 API_KEY를 실제 키로 교체해주세요!');
         return;
     }
