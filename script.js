@@ -3,8 +3,7 @@
 // ===================================
 const CONFIG = {
     NEIS_API_URL: 'https://open.neis.go.kr/hub/mealServiceDietInfo',
-    NEIS_API_KEY: '107e73dfab6c4572b7b0f07548ebaaf1', // ⚠️ NEIS API 키 입력
-    GEMINI_API_KEY: 'AIzaSyD8xHxntPSYKNunSRFjqS5rB6TcCmHBYvQ', // ⚠️ Gemini API 키 입력
+    NEIS_API_KEY: '107e73dfab6c4572b7b0f07548ebaaf1	', // ⚠️ NEIS API 키 입력 (관리자만)
     OFFICE_CODE: 'E10' // 인천교육청 (고정)
 };
 
@@ -29,6 +28,7 @@ const elements = {
     menuList: document.getElementById('menuList'),
     
     imageSection: document.getElementById('imageSection'),
+    geminiApiKey: document.getElementById('geminiApiKey'),
     generateImageBtn: document.getElementById('generateImageBtn'),
     loadingState: document.getElementById('loadingState'),
     imageResult: document.getElementById('imageResult'),
@@ -305,9 +305,11 @@ async function handleImageGeneration() {
         return;
     }
     
-    // API 키 확인
-    if (CONFIG.GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
-        alert('❌ script.js에서 GEMINI_API_KEY를 실제 키로 교체해주세요!');
+    // 입력란에서 API 키 가져오기
+    const apiKey = elements.geminiApiKey.value.trim();
+    
+    if (!apiKey) {
+        alert('❌ Gemini API 키를 입력해주세요!\n\nhttps://aistudio.google.com/app/apikey 에서 발급받을 수 있습니다.');
         return;
     }
     
@@ -316,7 +318,7 @@ async function handleImageGeneration() {
     elements.imageResult.style.display = 'none';
     
     try {
-        const imageUrl = await generateImageWithGemini(appState.currentMenu);
+        const imageUrl = await generateImageWithGemini(appState.currentMenu, apiKey);
         
         elements.generatedImage.src = imageUrl;
         elements.imageInfo.textContent = `📅 ${formatKoreanDate(appState.currentDate)} | 🍽️ ${appState.currentMenu.join(', ')}`;
@@ -336,10 +338,10 @@ async function handleImageGeneration() {
 /**
  * Gemini 2.5 Flash Image로 이미지 생성
  */
-async function generateImageWithGemini(menu) {
+async function generateImageWithGemini(menu, apiKey) {
     const menuText = menu.join(', ');
     
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${CONFIG.GEMINI_API_KEY}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`;
     
     const prompt = `A realistic photo of a Korean elementary school lunch on a stainless steel tray with compartments, top-down view. The tray contains: ${menuText}. Natural lighting, appetizing colors, typical school cafeteria food presentation.`;
     
