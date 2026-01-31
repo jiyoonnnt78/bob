@@ -4,7 +4,7 @@
 const CONFIG = {
     NEIS_API_URL: 'https://open.neis.go.kr/hub/mealServiceDietInfo',
     NEIS_API_KEY: '107e73dfab6c4572b7b0f07548ebaaf1', // ⚠️ NEIS API 키 입력
-    HUGGINGFACE_API_KEY: 'YOUR_HUGGINGFACE_TOKEN_HERE', // ⚠️ Hugging Face 토큰 입력
+    GEMINI_API_KEY: 'AIzaSyD8xHxntPSYKNunSRFjqS5rB6TcCmHBYvQ', // ⚠️ Gemini API 키 입력
     OFFICE_CODE: 'E10' // 인천교육청 (고정)
 };
 
@@ -306,8 +306,8 @@ async function handleImageGeneration() {
     }
     
     // API 키 확인
-    if (CONFIG.HUGGINGFACE_API_KEY === 'YOUR_HUGGINGFACE_TOKEN_HERE') {
-        alert('❌ script.js에서 HUGGINGFACE_API_KEY를 실제 토큰으로 교체해주세요!');
+    if (CONFIG.GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY_HERE') {
+        alert('❌ script.js에서 GEMINI_API_KEY를 실제 키로 교체해주세요!');
         return;
     }
     
@@ -316,7 +316,7 @@ async function handleImageGeneration() {
     elements.imageResult.style.display = 'none';
     
     try {
-        const imageUrl = await generateImageWithFLUX(appState.currentMenu);
+        const imageUrl = await generateImageWithGemini(appState.currentMenu);
         
         elements.generatedImage.src = imageUrl;
         elements.imageInfo.textContent = `📅 ${formatKoreanDate(appState.currentDate)} | 🍽️ ${appState.currentMenu.join(', ')}`;
@@ -334,41 +334,59 @@ async function handleImageGeneration() {
 }
 
 /**
- * Hugging Face FLUX로 이미지 생성
+ * Gemini 2.5 Flash Image로 이미지 생성
  */
-async function generateImageWithFLUX(menu) {
+async function generateImageWithGemini(menu) {
     const menuText = menu.join(', ');
     
-    const modelId = "black-forest-labs/FLUX.1-schnell";
-    const url = `https://api-inference.huggingface.co/models/${modelId}`;
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${CONFIG.GEMINI_API_KEY}`;
     
     const prompt = `A realistic photo of a Korean elementary school lunch on a stainless steel tray with compartments, top-down view. The tray contains: ${menuText}. Natural lighting, appetizing colors, typical school cafeteria food presentation.`;
     
-    console.log('📤 Hugging Face FLUX API 요청');
+    console.log('📤 Gemini 2.5 Flash Image API 요청');
     console.log('🎨 프롬프트:', prompt);
     
-    const response = await fetch(url, {
+    const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${CONFIG.HUGGINGFACE_API_KEY}`,
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            inputs: prompt
+            contents: [{
+                parts: [{
+                    text: prompt
+                }]
+            }],
+            generationConfig: {
+                responseModalities: ['IMAGE']
+            }
         })
     });
 
     if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ API 오류:', errorText);
-        throw new Error(`Hugging Face API 오류: ${response.status}`);
+        const errorData = await response.json();
+        console.error('❌ API 오류:', errorData);
+        throw new Error(errorData.error?.message || `HTTP 오류: ${response.status}`);
     }
 
-    const imageBlob = await response.blob();
-    const imageUrl = URL.createObjectURL(imageBlob);
+    const result = await response.json();
+    console.log('📦 API 응답:', result);
     
-    console.log('✅ 이미지 생성 성공!');
-    return imageUrl;
+    // 이미지 데이터 찾기
+    const base64Image = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+    
+    if (base64Image) {
+        console.log('✅ 이미지 생성 성공!');
+        return `data:image/png;base64,${base64Image}`;
+    }
+    
+    // 텍스트만 반환된 경우
+    const textResponse = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (textResponse) {
+        throw new Error(`⚠️ 이미지 생성 실패: 모델이 텍스트만 반환했습니다.\n\n${textResponse.substring(0, 200)}...`);
+    }
+    
+    throw new Error('API 응답에서 이미지 데이터를 찾을 수 없습니다');
 }
 
 // ===================================
